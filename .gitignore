@@ -1,0 +1,8 @@
+build/
+upstream/
+emsdk/
+*.wasm
+*.o
+*.a
+*.bc
+*.js.map
