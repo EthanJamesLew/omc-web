@@ -1,0 +1,19 @@
+From: omc-web <build@local>
+Subject: [PATCH] gc: fix GC_deinit when threads are disabled on non-Windows
+
+When building Boehm GC without threads on a non-Windows target (the wasm
+case), the `!defined(GC_PTHREADS)` branch in GC_deinit tries to call
+DeleteCriticalSection, which is a Win32 API. Constrain the call to the
+Windows path so non-Windows no-thread builds compile.
+
+--- a/misc.c
++++ b/misc.c
+@@ -1463,7 +1463,7 @@
+ #     if defined(THREADS) && (defined(MSWIN32) || defined(MSWINCE))
+         DeleteCriticalSection(&GC_write_cs);
+ #      endif
+-#     if !defined(GC_PTHREADS)
++#     if !defined(GC_PTHREADS) && (defined(MSWIN32) || defined(MSWINCE))
+         DeleteCriticalSection(&GC_allocate_ml);
+ #     endif
+     }

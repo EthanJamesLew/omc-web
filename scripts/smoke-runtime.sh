@@ -32,6 +32,7 @@ CFLAGS=(
   -c
   -O0
   -w
+  -I "$(pwd)/src"
   -I "$BOOT_C"
   -I "$RUNTIME"
   -I "$SIMRT_H"
