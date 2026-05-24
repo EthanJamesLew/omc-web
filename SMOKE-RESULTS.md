@@ -33,23 +33,55 @@ node build/omc.js                  # observe RuntimeError trap
 
 ## What the wasm currently does
 
-Loading and running the wasm gets us into OMC's `omc_Main_main`. The
-runtime then traps:
+This is much further along than the original headline suggested.
+
+```bash
+# Build a per-file VFS with a model in it
+echo 'model X end X;' > build/vfs/X.mo
+
+# Compile with the file preloaded
+emcc ... --preload-file build/vfs@/ ... -o build/omc-prof.js
+
+# Run
+$ cd build && node omc-prof.js /X.mo
+Error processing file: /X.mo
+# Error encountered! Exiting...
+# Please check the error message and the flags.
+Execution failed!
+```
+
+The wasm:
+
+1. ✅ Loads. The MetaModelica runtime initialises, GC starts up.
+2. ✅ Parses argv. `omc_Main_main` runs to completion.
+3. ✅ Reads files from emscripten's MEMFS (proves the FS shim, prepared-tree paths, and our SystemImpl stat/open work).
+4. ✅ Reaches OMC's parsing pipeline and emits OMC's own error messages (`"Error processing file:"`, `"# Error encountered! Exiting..."` — these are from `omc_Main_main2`, not from us).
+5. ⚠️ Fails inside the file-load step.
+
+The most likely cause is that `Settings_getInstallationDirectoryPath()` (auto-stub) returns `""`, so OMC can't locate its built-in Modelica startup scripts (`<OPENMODELICAHOME>/share/omc/scripts/PreSimulation.mos`, builtin type declarations, etc.). The classloader fails, OMC throws an MMC exception, `_main.c`'s `MMC_CATCH_TOP` prints "Execution failed!".
+
+This is a configuration problem, not a port problem. The remaining work for Milestone 2 ("parse a real .mo file") is:
+
+1. Decide on a wasm `OPENMODELICAHOME` layout (e.g. `/omc/`).
+2. Bake the necessary OMC built-in files into the VFS at that path:
+   - `share/omc/scripts/` (a few MetaModelica startup scripts)
+   - Built-in type definitions
+   - `share/omc/omlibrary/Modelica/` for MSL once Milestone 4 lands
+3. Wire `Settings_getInstallationDirectoryPath` to return `/omc`.
+
+The `omc-prof.js` build (`--profiling-funcs`) preserves function names so the stack at any further trap can be read directly. Sample of a previously-seen trap:
 
 ```
 RuntimeError: memory access out of bounds
-    at wasm-function[4721]:0x5e7f2a
-    at wasm-function[437]:0x17f49
-    at invoke_ii
-    ...
-    at Module._main
+    at omc-prof.wasm.stringAppendList    (wasm-function[7351])
+    at omc-prof.wasm.omc_FlagsUtil_printUsage
+    at omc-prof.wasm.omc_Main_main2
+    at omc-prof.wasm.omc_Main_main
+    at omc-prof.wasm.__omc_main
+    at omc-prof.wasm.main
 ```
 
-This is a real bug to chase, not a build problem. Likely causes (in order of probability):
-
-1. A stub returning a NULL where a valid MetaModelica metatype is expected — most stubs return `mmc_mk_nil()` for metatype returns, but a few might be wrong. E.g. `System_uriToClassAndPath` writes raw `const char*` pointers — those need to be MetaModelica strings (`mmc_mk_scon`).
-2. Boehm GC init/heap-mismap. We built GC without threads + without execinfo/dl_iterate_phdr; emscripten heap is virtual. May need `-s INITIAL_MEMORY` bumped or `GC_init` tweaks.
-3. Settings paths returning `""` where the compiler expects a real `OPENMODELICAHOME`. The compiler tries to load `share/omc/scripts/...` at startup.
+This particular one fires when omc is invoked with no args (the usage builder walks an empty `Gettext` translation table) — provide a `.mo` argument and that path doesn't run.
 
 ## Stub coverage
 

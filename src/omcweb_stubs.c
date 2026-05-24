@@ -30,14 +30,13 @@
 
 /* ---- file-ish I/O — pass through to libc / emscripten FS ---------------- */
 
-int SystemImpl__stat(const char* filename, double* out_size, double* out_mtime, int* out_type) {
+int SystemImpl__stat(const char* filename, double* out_size, double* out_mtime) {
   /* Note: <sys/stat.h> defines st_mtime as a macro, so do not name params
-   * `st_size`/`st_mtime`. */
+   * `st_size`/`st_mtime`. The upstream signature is 3 args, not 4. */
   struct stat sb;
-  if (stat(filename, &sb) != 0) { *out_size = 0; *out_mtime = 0; *out_type = 0; return 0; }
+  if (stat(filename, &sb) != 0) { *out_size = 0; *out_mtime = 0; return 0; }
   *out_size  = (double) sb.st_size;
   *out_mtime = (double) sb.st_mtime;
-  *out_type  = S_ISDIR(sb.st_mode) ? 2 : (S_ISREG(sb.st_mode) ? 1 : 0);
   return 1;
 }
 
@@ -184,15 +183,14 @@ const char* SystemImpl__iconv__ascii(const char* s) {
   return out;
 }
 
-/* lookup_ptr: declared in Compiler/runtime/systemimpl.h, defined in
- * Dynload.cpp. We stub it because in the bootstrap variant we don't
- * support runtime-loaded Modelica external functions. */
-typedef struct { void* data; const char* desc; } modelica_ptr_t_stub;
-extern modelica_ptr_t_stub lookup_ptr(int idx) __attribute__((weak));
-modelica_ptr_t_stub lookup_ptr(int idx) {
+/* lookup_ptr: declared in Compiler/runtime/systemimpl.h as
+ *   modelica_ptr_t lookup_ptr(modelica_integer index);
+ * `modelica_ptr_t` is `void*` (a pointer into a pointer-table; NULL means
+ * "not found"). The bootstrap variant doesn't dynamically load Modelica
+ * external functions, so always returning NULL is correct. */
+void* lookup_ptr(int idx) {
   (void) idx;
-  modelica_ptr_t_stub p = {0, 0};
-  return p;
+  return 0;
 }
 
 int System_getHasInnerOuterDefinitions(void) { return 0; }
