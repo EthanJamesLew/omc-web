@@ -608,6 +608,10 @@ void System_writeFile(const char* , const char*) {
 
 }
 
+int setenv(const char* , const char* , int) {
+  return 0;
+}
+
 /* --- from Unzip.h --- */
 int om_unzip(const char* , const char* , const char*) {
   return 0;

@@ -167,8 +167,11 @@ def _symbols_in_archive(ar: Path) -> set[str]:
 
 # libc / POSIX names that OMC declares extern but where we want
 # emscripten's real implementation, not our zero-return stub.
+# (`setenv` deliberately NOT here: OMC's MetaModelica `setenv` external
+# calls back to libc setenv via the wrapper in OMBootstrapping. Allowing
+# our auto-stub to override is harmless — at worst env vars don't get
+# set, which we don't need in the wasm anyway.)
 LIBC_NAMES = {
-    "setenv", "unsetenv", "getenv",
     "fputs", "fopen", "fclose", "fread", "fwrite",
     "alarm", "rename", "remove", "unlink",
     "access", "stat", "chmod",

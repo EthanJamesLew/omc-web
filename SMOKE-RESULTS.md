@@ -99,6 +99,32 @@ classes → checking experiment annotation → reading config flag → OOB.
 The OOB is inside MetaModelica array access; the global Flags state is
 likely not fully populated for the back-end's expectations.
 
+## Memory corruption between argv setup and translateFile
+
+When we override `omc_FlagsUtil_readArgs` to just return its input
+unchanged (bypass the broken init loop), we get further — into
+`translateFile` — but it sees the arg as garbled bytes (e.g. `\xa7\xa7`
+instead of `/X.mo`). The args list pointer survives correctly through
+the call (verified with a debug printf showing `inArgs=0x422bff3`, a
+properly tagged pointer in the heap region), but the string CONTENT
+that the list points to is corrupted by the time `translateFile` reads it.
+
+Most likely root causes (untested):
+- Boehm GC + emscripten heap interaction. ALL_INTERIOR_POINTERS is set
+  in the GC build, GC_register_displacement(3) is called for tagged
+  pointers, but the GC's stack-scan may not catch emscripten's wasm
+  stack frame correctly, leading to premature collection of the
+  argv-derived strings.
+- A hand-written stub writing past an allocation. Possibly
+  `omcweb_stubs.c`'s `System_strtok` or one of the path helpers.
+- ABI mismatch in one of the System_* stub signatures vs OMC's wrapper —
+  we already caught `SystemImpl__stat` (3→4 args) and `lookup_ptr`
+  (struct return → void* return); there may be more.
+
+The crash pattern shifts unpredictably between builds depending on
+preloaded data file size — that's the fingerprint of a wild-pointer /
+memory-corruption bug rather than a deterministic logic error.
+
 ## Current blockers (in observed order, one per layer left)
 
 1. **Full `NFModelicaBuiltin.mo` parses to an OOB inside the parser's
