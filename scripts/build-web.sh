@@ -10,6 +10,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . emsdk/emsdk_env.sh > /dev/null 2>&1
+# emsdk's bundled wasm-opt is too old for --fpcast-emu post-pass on OMC's
+# many-arg functions (Fatal: max-func-params needs to be at least 18).
+# Prefer Homebrew's binaryen (v129+) when present.
+if [ -x /opt/homebrew/opt/binaryen/bin/wasm-opt ]; then
+  export BINARYEN_ROOT=/opt/homebrew/opt/binaryen
+fi
 
 # Rebuild the stubs object (cheap) so iterating src/omcweb_stubs.c does
 # not require a full build-libs.sh run.

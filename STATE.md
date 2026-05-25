@@ -1,6 +1,18 @@
 # State of the port (as of 2026-05-24)
 
-## TL;DR — the OOB is fixed
+## TL;DR — bouncing ball (no-MSL) compiles through the front-end
+
+Wasm OMC now runs the entire front-end pipeline on a real model:
+argv → Flags init → classloader → ANTLR3 parser → NFFrontEnd mkTop
+/ lookup → translateModel. Trivial `model X end X;` and a no-MSL
+bouncing ball both compile to exit 0 with no errors. With `+s`
+(simulation codegen) we reach the back-end's BackendDAECreate, then
+hit a wasm strict-indirect-call signature mismatch in `omc_List_map`
+that needs binaryen-level work (see "Remaining blockers" below).
+
+The original wasm OOB is fixed.
+
+
 
 The `RuntimeError: memory access out of bounds in omc_FlagsUtil_readArgs`
 that gated everything is no longer happening. Root cause: Boehm GC under
@@ -65,16 +77,30 @@ Toolchain: emsdk 3.1.74 (clang 19).
   and runs the same OMBootstrapping C through the same paths, useful
   as a debugging-comparison oracle.
 
-## What's broken (now)
+## Remaining blockers
 
-The wasm no longer crashes; it reports "Error processing file: /X.mo"
-because the classloader can't find `MetaModelicaBuiltin.mo` /
-`NFModelicaBuiltin.mo` / etc. in the preloaded `/omc/lib/omc/` MEMFS
-directory. The reduced builtin set in `src/omhome-builtins/` is
-preloaded via `--preload-file`, so the FILES are there, but the
-classloader's lookup path or our `Settings_getInstallationDirectoryPath`
-stub isn't returning what the front-end expects. That's the next thing
-to debug — but it's a configuration problem, not a port problem.
+1. **Back-end wasm fnptr signature mismatch.** With `+s`
+   (simulationCg) we reach
+   `omc_CevalScriptBackend_translateModel → omc_SimCodeMain_translateModel
+   → omc_BackendDAECreate_lower → patchRecordBindings → omc_List_map`,
+   where a call_indirect rejects with "null function or function
+   signature mismatch". OMC code casts function pointers between
+   different arities; native ignores this, wasm enforces strict
+   signature matching. emcc's `EMULATE_FUNCTION_POINTER_CASTS=1` wraps
+   indirect calls in trampolines, but its wasm-opt `--fpcast-emu` pass
+   bails with "max-func-params needs to be at least 18" — some OMC
+   functions have >16 params and the cast-emu pass packs all params
+   into one wrapper that exceeds binaryen's compile-time limit
+   (latest 129 still). Fix paths: (a) rebuild binaryen with higher
+   MaxFunctionParams, (b) hand-patch the few high-arity callsites in
+   BackendDAECreate / SimCodeMain, (c) wait for an emcc release that
+   raises this limit.
+
+2. **Modelica Standard Library.** The committed `BouncingBall.mo`
+   imports `Modelica.Constants.g_n`. We don't ship MSL; classloader
+   reports "ANTLR3: File read error: Is a directory" trying to load
+   the package. For now use
+   `web/examples/BouncingBall_NoMSL.mo`, which inlines `g`.
 
 ## Historical record — what the old crash was
 
