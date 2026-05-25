@@ -1,4 +1,38 @@
-# State of the port (as of 2026-05-25)
+# State of the port (as of 2026-05-24)
+
+## TL;DR — the OOB is fixed
+
+The `RuntimeError: memory access out of bounds in omc_FlagsUtil_readArgs`
+that gated everything is no longer happening. Root cause: Boehm GC under
+emscripten defines `STACK_NOT_SCANNED` (see `3rdParty/gc/include/private/
+gcconfig.h`) — the wasm shadow stack is invisible to BDWGC, so live
+roots like argv-derived strings were getting collected. The whole OMC
+pipeline runs assuming a stack-scanning GC.
+
+Fix: replaced `libomcgc.a` with `src/omcweb_gc_stub.c`, a no-collect
+allocator backed by libc `malloc`/`free`. Allocations leak until the
+wasm exits; with `ALLOW_MEMORY_GROWTH=1` a single-shot compile fits.
+
+The wasm now reaches the same final state as the native binary:
+"Error processing file: /X.mo" — that's the classloader failing on a
+missing OPENMODELICAHOME, not a runtime trap.
+
+What the diagnostic looked like:
+
+1. Built `build-native/omc-native` from the same OMBootstrapping C
+   compiled with `clang` on macOS arm64 (`scripts/build-native.sh`).
+2. Under lldb, native enters `omc_FlagsUtil_readArgs` and `omc_Flags_
+   getConfigEnum` (the two wasm crash sites) and continues past them
+   cleanly. Same call chain as wasm. → bug is wasm-specific.
+3. `wasm-objdump` of the crash offset `func[667]:0x2ebcc` shows it's
+   inside a list-traversal `i32.load` of `head-3` — reading the MMC
+   header of the first argv-derived string.
+4. Grepping `gcconfig.h` for `__EMSCRIPTEN__` reveals the `STACK_NOT_
+   SCANNED` define and a comment confirming GC cannot walk the wasm
+   stack.
+5. Drop-in libc-malloc GC stub → bug gone, wasm matches native.
+
+
 
 ## What this is
 
@@ -20,19 +54,32 @@ Toolchain: emsdk 3.1.74 (clang 19).
 - The wasm runtime loads under node + browser; main() executes.
 - argv parsing, file I/O via emscripten MEMFS, the early classloader
   paths all work.
-- Boehm GC + ANTLR3 + ryu are built as wasm static archives and link.
+- ANTLR3 + ryu are built as wasm static archives and link.
 - The ANTLR3-generated Modelica parser is correctly compiled with the
   10-arg `Absyn.CLASS` ABI matching the full compiler.
 - For trivial Modelica source (`model X end X;`), the parser succeeds
   and the front-end starts running.
-- In one configuration we reached
-  `omc_CevalScriptBackend_buildSimulationOptionsFromModelExperimentAnnotation`
-  — i.e. **inside the simulation back-end**.
+- argv parsing reaches `translateFile` cleanly (no more OOB in
+  `omc_FlagsUtil_readArgs`).
+- A parallel native-on-macOS build (`scripts/build-native.sh`) compiles
+  and runs the same OMBootstrapping C through the same paths, useful
+  as a debugging-comparison oracle.
 
-## What's broken
+## What's broken (now)
 
-`omc.wasm` aborts with one of two crashes depending on the size of the
-preloaded MEMFS data file:
+The wasm no longer crashes; it reports "Error processing file: /X.mo"
+because the classloader can't find `MetaModelicaBuiltin.mo` /
+`NFModelicaBuiltin.mo` / etc. in the preloaded `/omc/lib/omc/` MEMFS
+directory. The reduced builtin set in `src/omhome-builtins/` is
+preloaded via `--preload-file`, so the FILES are there, but the
+classloader's lookup path or our `Settings_getInstallationDirectoryPath`
+stub isn't returning what the front-end expects. That's the next thing
+to debug — but it's a configuration problem, not a port problem.
+
+## Historical record — what the old crash was
+
+`omc.wasm` used to abort with one of two crashes depending on the size
+of the preloaded MEMFS data file:
 
 ```
 RuntimeError: memory access out of bounds
@@ -96,21 +143,55 @@ These are documented for future-me / future-collaborator context.
    files. Fix: hand-stubs returning `/omc`, MEMFS preload of
    `lib/omc/*.mo`.
 
+9. **Wasm parser regression after switching to OMBootstrapping.**
+   `libomcparser.a` shrank from 800 KB → 50 KB because OMBootstrapping
+   ships its own `errorext.h` (a MetaModelica-binding stub) that
+   shadowed OMC's `Compiler/runtime/errorext.h` and hid
+   `c_add_source_message` / `ErrorType_syntax` from the parser. Fix:
+   put `-I Compiler/runtime` BEFORE `-I OMBootstrapping/bootstrap-
+   sources/build` in `PARSER_INCS` (both wasm and native).
+
+10. **OMBootstrapping `gc.h` shim shadowed real libgc gc.h.** The old
+    in-tree `bootstrap-sources/build/gc.h` was being pulled in via
+    `-I` before `3rdParty/gc/include/gc.h`, causing
+    `meta_modelica_builtin.h` to be parsed before its dependencies
+    were declared. Fix: STUB_CFLAGS in build-web.sh now uses
+    OMBootstrapping's `bootstrap-sources/build/` (which doesn't have a
+    gc.h shim) and drops `-DOMC_BOOTSTRAPPING`.
+
+11. **Boehm GC vs wasm shadow stack — THE big one.** Boehm GC under
+    emscripten defines `STACK_NOT_SCANNED`, by design. It cannot walk
+    the wasm shadow stack, so live roots on the C stack (like the
+    argv-derived `lst` in `_main.c`) are invisible. A single allocation
+    during init could collect strings the front-end was about to read.
+    Manifested as the OOB at `omc_FlagsUtil_readArgs:0x2ebcc` reading
+    a list-cell head's MMC header. Fix: replace `libomcgc.a` with
+    `src/omcweb_gc_stub.c` — a libc-malloc no-collect allocator.
+    Allocations leak until wasm exits; `ALLOW_MEMORY_GROWTH=1` handles
+    growth. Proper fix later (e.g. register wasm shadow stack range
+    with `GC_push_all`) requires deeper Boehm GC surgery.
+
 ## What still needs to happen for a real bouncing-ball simulation
 
 Each is its own session of focused work.
 
-1. **Fix the memory corruption** that the args/Flags paths trip into.
-   Needs a wasm-aware debugger or a native-build comparison — see
-   `DEBUGGING.md`.
+1. **Make the classloader actually find the preloaded builtins.** The
+   wasm reports "Error processing file: /X.mo" because OMC's
+   classloader can't locate `/omc/lib/omc/*Builtin.mo` even though
+   those files are baked into the MEMFS via `--preload-file`. Likely a
+   path-resolution mismatch between `Settings_getInstallationDirectory
+   Path` returning `/omc` and how the classloader actually composes
+   the lookup path. Add an OMC trace, watch what path it's calling
+   `stat()`/`open()` with, and reconcile.
 
 2. **Make the full `NFModelicaBuiltin.mo` parse.** Currently we ship a
    reduced version (in `src/omhome-builtins/`); the full upstream file
    trips a parser OOB in the comment-collection loop in `Modelica.g`.
-   Might be the same root cause as (1), might not.
+   With the GC issue fixed, this is now worth re-testing — it may
+   have been the same root cause.
 
 3. **Get `translateModel` to run end-to-end** on a trivial model. Once
-   args + builtins work, OMC's pipeline should produce flat Modelica
+   builtins are findable, OMC's pipeline should produce flat Modelica
    → SimCode → C output.
 
 4. **Bundle wasm-clang** to compile the OMC-generated C into a per-model

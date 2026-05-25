@@ -33,22 +33,49 @@ if [ -d src/omhome-builtins ]; then
 else
   echo "[build] WARN: src/omhome-builtins/ missing; preserving existing $OMHOME_STAGE/lib/omc/"
 fi
+# STUB_CFLAGS: same ABI as build-libs.sh — point at OMBootstrapping
+# bootstrap-sources/build (NOT the legacy in-tree path) so meta_modelica.h
+# pulls in OMBootstrapping's headers rather than the old gc.h shim, which
+# pre-includes meta_modelica_builtin.h before declarations are visible.
+# Likewise, don't define OMC_BOOTSTRAPPING (we use OMBootstrapping's
+# 10-arg Absyn ABI throughout the codebase).
+OMBOOTSTRAPPING="${OMBOOTSTRAPPING:-/tmp/OMBootstrapping}"
+BOOT_C="$OMBOOTSTRAPPING/bootstrap-sources/build"
 STUB_CFLAGS=(
   -c -O2 -w
   -I "$(pwd)/src"
   -I "$SIMRT_H" -I "$SIMRT_H/util" -I "$SIMRT_H/meta"
-  -I "$OMC_ROOT/OMCompiler/Compiler/boot/bootstrap-sources/build"
+  -I "$BOOT_C"
   -I "$THIRDPARTY/gc/include"
-  -DOM_HAVE_PTHREADS -DOMC_BOOTSTRAPPING -DADD_METARECORD_DEFINITIONS=
+  -DOM_HAVE_PTHREADS -DADD_METARECORD_DEFINITIONS=
 )
 emcc "${STUB_CFLAGS[@]}" src/omcweb_stubs.c       -o build/omcweb_stubs.o
 [ -f src/omcweb_stubs_auto.c ] && \
   emcc "${STUB_CFLAGS[@]}" src/omcweb_stubs_auto.c -o build/omcweb_stubs_auto.o
+# omcweb_main.o provides our wasm-aware __omc_main (calls GC_disable() after
+# MMC_INIT). Built without OMC_ENTRYPOINT_STATIC so main() comes from
+# _main-entry.o; our __omc_main wins over libomcbootstrap.a's because object
+# files always link, archives are lazy.
+emcc "${STUB_CFLAGS[@]}" src/omcweb_main.c -o build/omcweb_main.o
+# omcweb_gc_stub.o: a leak-everything libc-malloc allocator that REPLACES
+# libomcgc.a. Boehm GC under emscripten can't scan the wasm shadow stack
+# (STACK_NOT_SCANNED), so collection would lose live roots; instead, we
+# just never collect. With ALLOW_MEMORY_GROWTH a single-shot compile fits.
+emcc "${STUB_CFLAGS[@]}" src/omcweb_gc_stub.c -o build/omcweb_gc_stub.o
 
-EXTRA_OBJS=()
+EXTRA_OBJS=(build/omcweb_main.o build/omcweb_gc_stub.o)
 [ -f build/omcweb_stubs_auto.o ] && EXTRA_OBJS+=(build/omcweb_stubs_auto.o)
 
-emcc -O2 --profiling-funcs \
+# Default to a profile-friendly release build. Set OMCWEB_DEBUG=1 to swap in
+# -O0 -g3 -gsource-map for Chrome DevTools wasm debugging — slower and ~4x
+# bigger but every wasm function maps back to a .c file and line.
+OPT_FLAGS=(-O2 --profiling-funcs)
+if [ "${OMCWEB_DEBUG:-0}" = "1" ]; then
+  OPT_FLAGS=(-O0 -g3 -gsource-map "--source-map-base=http://localhost:${OMCWEB_PORT:-8080}/")
+  echo "[build] DEBUG build: -O0 -g3 -gsource-map"
+fi
+
+emcc "${OPT_FLAGS[@]}" \
   --preload-file "$OMHOME_STAGE@/omc" \
   build/_main-entry.o \
   build/omcweb_stubs.o \
@@ -58,14 +85,13 @@ emcc -O2 --profiling-funcs \
   build/libomcsimrt.a \
   build/parser-gen/libomcparser.a \
   build/deps/antlr3/libomantlr3.a \
-  build/deps/gc/libomcgc.a \
   build/deps/ryu/libomcryu.a \
   -lm \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s INITIAL_MEMORY=256MB \
   -s STACK_SIZE=64MB \
   -s SUPPORT_LONGJMP=1 \
-  -s ASSERTIONS=1 \
+  -s ASSERTIONS=${OMCWEB_ASSERTIONS:-1} \
   -s SAFE_HEAP=${OMCWEB_SAFE_HEAP:-0} \
   -s FORCE_FILESYSTEM=1 \
   -s INVOKE_RUN=0 \

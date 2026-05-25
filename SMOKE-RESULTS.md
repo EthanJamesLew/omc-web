@@ -1,6 +1,24 @@
 # omc-web build progress
 
-Latest session: Milestone 1 reached. `omc.wasm` builds and runs.
+Latest session: **The memory-corruption OOB is fixed.** Wasm and native
+now reach the same final state ("Error processing file") — past argv
+parsing, past Flags init, into the classloader.
+
+Headline diagnostic: built a native macOS arm64 binary from the same
+OMBootstrapping C, ran it under lldb, observed it passed cleanly
+through both wasm crash sites (`omc_FlagsUtil_readArgs` at func[667]:
+0x2ebcc and `omc_Flags_getConfigEnum`). That confirmed the bug was
+wasm-specific. `grep -B 2 -A 20 __EMSCRIPTEN__ 3rdParty/gc/include/
+private/gcconfig.h` then revealed `STACK_NOT_SCANNED` — Boehm GC under
+emscripten by design does not walk the wasm shadow stack. Live roots
+on the C stack get collected. Replaced `libomcgc.a` with a libc-malloc
+no-collect stub (`src/omcweb_gc_stub.c`) → OOB gone.
+
+----
+
+(history below)
+
+Earlier session: Milestone 1 reached. `omc.wasm` builds and runs.
 
 Toolchain: emsdk 3.1.74 (clang 19, llvm release c2655005)
 Upstream OMC: `55e1ec10488b34c01154715f76f6a0a92e4b6e97`
