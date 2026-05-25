@@ -1,11 +1,13 @@
 /* omc-web: AUTO-GENERATED stubs. Do not hand-edit.
  * Regenerate via: python3 scripts/gen-stubs.py
- * These return default values (0, NULL, "", mmc_mk_nil) for
- * functions whose proper implementation hasn't been ported yet.
- * Hand-written stubs in omcweb_stubs.c take precedence. */
+ * Default-value stubs (0, NULL, "", mmc_mk_nil) for the
+ * runtime-shim externs OMC's MetaModelica-generated C calls into.
+ * Hand-written stubs in omcweb_stubs.c take precedence.
+ * Tracing: disabled (set OMCWEB_STUB_TRACE=1 to enable) */
 
 #include "meta/meta_modelica.h"
 #include "openmodelica.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -324,51 +326,6 @@ int OMSimulator_unloadDLL(void) {
   return 0;
 }
 
-/* --- from ParserExt.h --- */
-int ParserExt_checkLVEToolFeature(modelica_metatype , const char*) {
-  return 0;
-}
-
-int ParserExt_checkLVEToolLicense(modelica_metatype , const char*) {
-  return 0;
-}
-
-modelica_metatype ParserExt_parse(const char* , const char* , int , int , int , const char* , int , const char* , modelica_metatype) {
-  return mmc_mk_nil();
-}
-
-modelica_metatype ParserExt_parseexp(const char* , const char* , int , int , int) {
-  return mmc_mk_nil();
-}
-
-modelica_metatype ParserExt_parsestring(const char* , const char* , int , int , int , int) {
-  return mmc_mk_nil();
-}
-
-modelica_metatype ParserExt_parsestringexp(const char* , const char* , int , int , int) {
-  return mmc_mk_nil();
-}
-
-int ParserExt_startLibraryVendorExecutable(const char* , modelica_metatype*) {
-  return 0;
-}
-
-void ParserExt_stopLibraryVendorExecutable(modelica_metatype) {
-
-}
-
-modelica_metatype ParserExt_stringCref(const char* , const char* , int , int , int) {
-  return mmc_mk_nil();
-}
-
-modelica_metatype ParserExt_stringMod(const char* , const char* , int , int , int) {
-  return mmc_mk_nil();
-}
-
-modelica_metatype ParserExt_stringPath(const char* , const char* , int , int , int) {
-  return mmc_mk_nil();
-}
-
 /* --- from Settings.h --- */
 int Settings_getEcho(void) {
   return 0;
@@ -649,10 +606,6 @@ void System_threadFail(OpenModelica_threadData_ThreadData*) {
 
 void System_writeFile(const char* , const char*) {
 
-}
-
-int setenv(const char* , const char* , int) {
-  return 0;
 }
 
 /* --- from Unzip.h --- */

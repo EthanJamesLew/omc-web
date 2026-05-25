@@ -125,15 +125,19 @@ def default_return(ret: str) -> str:
     return "return 0;"
 
 
-def emit_stub(name: str, ret: str, args: str) -> str:
-    # Argument list — keep types but drop names so unused-warns are silent.
-    # If `args` is empty or just "void", emit "void".
+def emit_stub(name: str, ret: str, args: str, trace: bool = False) -> str:
+    """Emit a C stub function. If `trace`, prepend a fprintf so we can see
+    which stubs get called during a run (useful for debugging crashes
+    deep inside OMC)."""
     args_clean = args.strip()
     if args_clean in ("", "void"):
         args_clean = "void"
     body = default_return(ret)
     body_line = "  " + body if body else ""
-    return f"{ret} {name}({args_clean}) {{\n{body_line}\n}}\n"
+    trace_line = ""
+    if trace:
+        trace_line = f'  fprintf(stderr, "[stub] {name}\\n");\n'
+    return f"{ret} {name}({args_clean}) {{\n{trace_line}{body_line}\n}}\n"
 
 
 def _externals_in_file(path: Path) -> set[str]:
@@ -161,23 +165,47 @@ def _symbols_in_archive(ar: Path) -> set[str]:
     return out
 
 
+# libc / POSIX names that OMC declares extern but where we want
+# emscripten's real implementation, not our zero-return stub.
+LIBC_NAMES = {
+    "setenv", "unsetenv", "getenv",
+    "fputs", "fopen", "fclose", "fread", "fwrite",
+    "alarm", "rename", "remove", "unlink",
+    "access", "stat", "chmod",
+    "strlen", "strcmp", "strncmp", "strchr",
+    "malloc", "free", "calloc", "realloc",
+    "exit", "atexit",
+}
+
+
 def main() -> int:
     # Index every extern in the shim headers. We emit a stub for every one,
     # then let the linker pick up only the symbols actually referenced —
     # this avoids the "iterate until convergence" drift entirely.
     index = index_headers(HEADERS_DIR, only=SHIM_HEADERS)
-    skip = hand_provided(HAND_FILE)
+    skip = hand_provided(HAND_FILE) | LIBC_NAMES
 
     # Skip anything OMBootstrapping already defines in FakeBoostrappingExternals.c
     # to avoid duplicate-symbol link errors.
     fake_path = HEADERS_DIR / "FakeBoostrappingExternals.c"
     skip |= _externals_in_file(fake_path)
 
-    # Skip anything we already provide via the runtime/simrt archives or
-    # the OMBootstrapping fake-externals shim, so we don't produce
-    # duplicate-symbol link errors.
-    for ar in ("libomcruntime.a", "libomcsimrt.a", "libomcbootstrap.a"):
-        skip |= _symbols_in_archive(ROOT / "build" / ar)
+    # Skip anything we already provide via OMC archives, the OMBootstrapping
+    # fake-externals shim, or the antlr3/ryu/gc/parser deps. Otherwise the
+    # linker takes the auto-stub's NULL-returning impl OVER the real one
+    # in the archive (object files beat archive contents). The parser case
+    # was the bouncing-ball crash: ParserExt_parse was being stubbed to
+    # mmc_mk_nil(), shadowing the real ANTLR-generated parser.
+    for ar_path in (
+        ROOT / "build" / "libomcruntime.a",
+        ROOT / "build" / "libomcsimrt.a",
+        ROOT / "build" / "libomcbootstrap.a",
+        ROOT / "build" / "parser-gen" / "libomcparser.a",
+        ROOT / "build" / "deps" / "antlr3" / "libomantlr3.a",
+        ROOT / "build" / "deps" / "gc" / "libomcgc.a",
+        ROOT / "build" / "deps" / "ryu" / "libomcryu.a",
+    ):
+        skip |= _symbols_in_archive(ar_path)
 
     symbols = sorted(index.keys())
     previously_auto = set()  # unused now; kept for compatibility
@@ -201,15 +229,18 @@ def main() -> int:
         emitted.append((s, ret, args, hdr))
         seen.add(s)
 
+    trace = os.environ.get("OMCWEB_STUB_TRACE") == "1"
     out = []
     out.append("/* omc-web: AUTO-GENERATED stubs. Do not hand-edit.")
     out.append(" * Regenerate via: python3 scripts/gen-stubs.py")
-    out.append(" * These return default values (0, NULL, \"\", mmc_mk_nil) for")
-    out.append(" * functions whose proper implementation hasn't been ported yet.")
-    out.append(" * Hand-written stubs in omcweb_stubs.c take precedence. */")
+    out.append(" * Default-value stubs (0, NULL, \"\", mmc_mk_nil) for the")
+    out.append(" * runtime-shim externs OMC's MetaModelica-generated C calls into.")
+    out.append(" * Hand-written stubs in omcweb_stubs.c take precedence.")
+    out.append(f" * Tracing: {'ENABLED — fprintf on every call' if trace else 'disabled (set OMCWEB_STUB_TRACE=1 to enable)'} */")
     out.append("")
     out.append("#include \"meta/meta_modelica.h\"")
     out.append("#include \"openmodelica.h\"")
+    out.append("#include <stdio.h>")
     out.append("#include <stdlib.h>")
     out.append("#include <string.h>")
     out.append("")
@@ -219,7 +250,7 @@ def main() -> int:
     for hdr in sorted(by_hdr):
         out.append(f"/* --- from {hdr} --- */")
         for name, ret, args in sorted(by_hdr[hdr]):
-            out.append(emit_stub(name, ret, args))
+            out.append(emit_stub(name, ret, args, trace=trace))
     STUB_FILE.write_text("\n".join(out))
 
     print(f"wrote {STUB_FILE}: {len(emitted)} stubs")

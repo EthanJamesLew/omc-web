@@ -16,6 +16,23 @@ cd "$(dirname "$0")/.."
 OMC_ROOT="${OMC_ROOT:-/tmp/OpenModelica}"
 THIRDPARTY="${THIRDPARTY:-/tmp/OMCompiler-3rdParty}"
 SIMRT_H="$OMC_ROOT/OMCompiler/SimulationRuntime/c"
+
+# Stage an OPENMODELICAHOME layout in build/omhome/ that we'll bake into
+# the wasm's MEMFS via --preload-file. OMC looks for builtin .mo files at
+# $OPENMODELICAHOME/lib/omc/*.mo — see FBuiltin.c _OMC_LIT308..312.
+#
+# We use REDUCED builtin files (in src/omhome-builtins/) rather than
+# upstream's full NFModelicaBuiltin.mo / ModelicaBuiltin.mo. The full files
+# trigger a parser OOB inside the wasm's ANTLR3 runtime that we haven't yet
+# isolated. The reduced files are enough to instantiate trivial models;
+# extending coverage tracks fixing the parser bug.
+OMHOME_STAGE=build/omhome
+mkdir -p "$OMHOME_STAGE/lib/omc"
+if [ -d src/omhome-builtins ]; then
+  cp -f src/omhome-builtins/*.mo "$OMHOME_STAGE/lib/omc/"
+else
+  echo "[build] WARN: src/omhome-builtins/ missing; preserving existing $OMHOME_STAGE/lib/omc/"
+fi
 STUB_CFLAGS=(
   -c -O2 -w
   -I "$(pwd)/src"
@@ -32,6 +49,7 @@ EXTRA_OBJS=()
 [ -f build/omcweb_stubs_auto.o ] && EXTRA_OBJS+=(build/omcweb_stubs_auto.o)
 
 emcc -O2 --profiling-funcs \
+  --preload-file "$OMHOME_STAGE@/omc" \
   build/_main-entry.o \
   build/omcweb_stubs.o \
   "${EXTRA_OBJS[@]}" \

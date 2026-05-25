@@ -44,23 +44,79 @@ upstream uses for `bomc` (the bootstrap binary OMC uses to rebuild itself).
 final wasm went from 7.3 MB to **19 MB**. Linking is clean: 0 unresolved
 symbols.
 
-## Current blocker: MetaModelica record-field alignment
+## Bugs found and fixed this iteration
 
-`SAFE_HEAP=1` builds reveal that both the `.mo` and `.mos` paths hit
-**alignment faults** when OMC walks tagged MetaModelica records via
-`MMC_FETCH(MMC_OFFSET(MMC_UNTAGPTR(x), n))`. The `.mo` path crashes in
-`omc_CevalScript_loadFile → omc_List_map2`; the `.mos` path crashes in
-`omc_Interactive_evaluateToStdOut`. Both reach OMC's generated C — past
-the stub layer.
+1. **Auto-stubs shadowed the real ANTLR parser.** `gen-stubs.py` was
+   emitting stubs for every `extern` in `ParserExt.h`, and emcc/wasm-ld
+   prefers explicit `.o` files over archive contents. `ParserExt_parse`
+   was therefore a no-op returning `mmc_mk_nil()`, never calling the
+   real ANTLR-generated parser. **Fix:** `gen-stubs.py` now excludes
+   every symbol already defined in `libomcparser.a`, `libomantlr3.a`,
+   `libomcryu.a`, `libomcgc.a`, plus the three OMC archives.
 
-Most likely cause: one of the ~165 auto-generated runtime stubs returns
-something tagged wrongly (e.g. a raw `void*` where MMC expected
-`MMC_TAGPTR(box)`), or a hand-written stub writes to a struct field at
-the wrong offset. The next session needs:
+2. **`Absyn.CLASS` arity mismatch (10 args vs 7 args).** The parser was
+   built with `-DOMC_BOOTSTRAPPING`, which produces 7-field Class records.
+   OMBootstrapping's full compiler reads field 11 (the 4th comment-after-end
+   slot), so any model parsed by the wasm parser tripped `MMC_OFFSET(p, 11)`
+   reaching past the short record. **Fix:** dropped `-DOMC_BOOTSTRAPPING`
+   from the build; pointed `Compiler/OpenModelicaBootstrappingHeader.h` at
+   OMBootstrapping's 10-arg header in `prepare-tree.sh`.
 
-1. Build with `-g3 -O0 --profiling-funcs -s SAFE_HEAP=1`
-2. Wrap each remotely-touched stub with `MMC_CHECK_*` asserts
-3. Bisect by zeroing out auto-stub return values
+3. **libc functions auto-stubbed.** OMC's `System.h` declares `extern int
+   setenv(...)`, and our generator was emitting `int setenv(...) { return
+   0; }` — overriding emscripten's real libc setenv. **Fix:** explicit
+   `LIBC_NAMES` skip-list (`setenv`, `fputs`, `alarm`, `stat`, …).
+
+4. **`SystemImpl__regularFileReadable` auto-stubbed to false.** Made every
+   `loadFile` immediately report file unreadable. **Fix:** hand-written
+   stub using `stat() + S_ISREG`.
+
+5. **`SystemImpl__fputs` auto-stubbed to no-op.** Made every OMC error
+   message invisible. **Fix:** real `fputs(stdout/stderr)`.
+
+6. **Settings backings missing.** Without `Settings_getInstallationDirectoryPath`,
+   the classloader couldn't find OMC's builtin .mo files. **Fix:** hand-written
+   stubs that return `/omc`, plus a baked OPENMODELICAHOME directory at
+   `/omc/lib/omc/` in MEMFS with reduced builtin files (see below).
+
+## Current state
+
+```
+$ node web/omc.js /X.mo   # with model X end X; in MEMFS at /X.mo
+…
+omc_CevalScriptBackend_buildSimulationOptionsFromModelExperimentAnnotation
+  → omc_InteractiveUtil_getInheritedAnnotation
+    → omc_NFApi_getInheritedClasses
+      → omc_NFApi_frontEndLookup
+        → omc_NFApi_mkTop
+          → omc_FBuiltin_getInitialFunctions
+            → omc_Flags_getConfigEnum   ← OOB here
+```
+
+**The compiler now runs into its own backend simulation-setup code.**
+Argv → file load → parser → frontend lookup → `mkTop` → loading builtin
+classes → checking experiment annotation → reading config flag → OOB.
+The OOB is inside MetaModelica array access; the global Flags state is
+likely not fully populated for the back-end's expectations.
+
+## Current blockers (in observed order, one per layer left)
+
+1. **Full `NFModelicaBuiltin.mo` parses to an OOB inside the parser's
+   comment-collection loop.** `Modelica.g` has a `while (tok =
+   INPUT->get(INPUT, omc_first_comment++))` that should terminate on
+   NULL but tripping a memory access OOB before it does. We work around
+   by shipping a REDUCED `NFModelicaBuiltin.mo` (in `src/omhome-builtins/`).
+   The reduced file is enough to start the back-end but misses types
+   that real MSL models would need.
+2. **`omc_Flags_getConfigEnum` OOB inside `arrayGet(_config_flags, _index)`.**
+   The `Flag.FLAGS` global root may be the default empty array; FlagsUtil
+   isn't fully populating it before back-end calls in.
+3. **`omc_FlagsUtil_readArgs` OOB** when invoking with `["/X.mo"]`. Similar
+   shape to (2) — config-flag global state. With no args the same code is
+   reached via `printUsage`.
+
+Each of these is debuggable individually with a `-g3 -O0` build, but
+each is its own session.
 
 ## What's already in place
 

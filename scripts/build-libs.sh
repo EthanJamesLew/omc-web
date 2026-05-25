@@ -49,11 +49,15 @@ INCS=(
 )
 DEFS=(
   -DOM_HAVE_PTHREADS
-  -DOMC_BOOTSTRAPPING
   -DADD_METARECORD_DEFINITIONS=     # otherwise *_records.c emit only externs
 )
+# NOTE: we used to set -DOMC_BOOTSTRAPPING, which makes the parser and
+# bootstrap C emit the 7-arg `Absyn.CLASS` macro variant. OMBootstrapping's
+# full compiler reads field 11 (commentsAfterEnd / info) so it needs the
+# 10-arg form. Keeping the define off so all .o files share one ABI.
 
-LOG=build/build-libs.log
+LOG="$(pwd)/build/build-libs.log"
+mkdir -p "$(pwd)/build"
 : > "$LOG"
 
 compile_one() {
@@ -125,6 +129,35 @@ done
 echo "  pass=$pass fail=$fail"
 [ ${#failed_rt[@]} -gt 0 ] && printf "    failed: %s\n" "${failed_rt[@]}"
 if [ $pass -gt 0 ]; then emar rcs build/libomcruntime.a build/runtime/objs/*.o; fi
+
+# ---- libomcparser.a (ANTLR3 java tool → C → wasm) ------------------------
+# The parser must use the SAME OpenModelicaBootstrappingHeader.h ABI as the
+# rest of the compiler; otherwise records like Absyn.CLASS get built with
+# the wrong arity. We always link against OMBootstrapping's full header.
+echo "[build] libomcparser.a (regenerate from grammar)"
+PARSER_OUT=build/parser-gen
+mkdir -p "$PARSER_OUT/objs"
+if ! ls "$PARSER_OUT"/ModelicaParser.c "$PARSER_OUT"/Modelica_3_Lexer.c "$PARSER_OUT"/MetaModelica_Lexer.c "$PARSER_OUT"/ParModelica_Lexer.c >/dev/null 2>&1; then
+  ANTLRJAR="$THIRDPARTY/antlr/3.2/tool/antlr-3.2.jar"
+  for lex in Modelica_3_Lexer.g ParModelica_Lexer.g MetaModelica_Lexer.g; do
+    (cd "$PARSER_OUT" && cp "$PARSER_DIR/$lex" . && cp "$PARSER_DIR/BaseModelica_Lexer.g" . && cp "$PARSER_DIR/FlatModelica_Lexer.g" . && cp "$PARSER_DIR/Modelica_2_Lexer.g" . && java -cp "$ANTLRJAR" org.antlr.Tool -Xconversiontimeout 10000 "$lex" > /dev/null 2>>"$LOG")
+  done
+  (cd "$PARSER_OUT" && cp "$PARSER_DIR/Modelica.g" . && java -cp "$ANTLRJAR" org.antlr.Tool -Xconversiontimeout 10000 Modelica.g > /dev/null 2>>"$LOG")
+fi
+pass=0; fail=0
+# Generated lexers use #include <Sibling.h>; -I the parser-gen dir.
+PARSER_INCS=("${INCS[@]}" -I "$PARSER_OUT")
+for src in "$PARSER_OUT"/*.c "$PARSER_DIR/Parser_omc.c"; do
+  name=$(basename "$src" .c)
+  if emcc -c -O2 -w "${PARSER_INCS[@]}" "${DEFS[@]}" "$src" -o "$PARSER_OUT/objs/$name.o" 2>>"$LOG"; then
+    pass=$((pass+1))
+  else
+    fail=$((fail+1))
+    echo "  parser FAIL: $name"
+  fi
+done
+echo "  parser pass=$pass fail=$fail"
+[ $pass -gt 0 ] && emar rcs "$PARSER_OUT/libomcparser.a" "$PARSER_OUT"/objs/*.o
 
 # ---- libomcbootstrap.a (compile fresh with proper defs) ------------------
 echo "[build] libomcbootstrap.a"

@@ -1,0 +1,2 @@
+package MetaModelicaBuiltin
+end MetaModelicaBuiltin;
