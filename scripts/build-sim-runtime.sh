@@ -49,6 +49,12 @@ UTIL_FILES=(
   ModelicaUtilities omc_error omc_file omc_init omc_numbers
   rational real_array ringbuffer simulation_options string_array utility
   varinfo
+  # rtclock dropped: under OMC_MINIMAL_RUNTIME=1 rtclock.h provides
+  # inline stubs and rtclock.c's body is incompatible (enum guards,
+  # redefinitions of the inline stubs). The functions csv/mat4/
+  # simulation_runtime actually CALL (rt_accumulated etc.) are missing
+  # from the minimal interface, so src/omcweb_rt_compat.c provides them
+  # as no-ops.
 )
 # Excluded from UTIL: omc_mmap (mmap deps), omc_msvc (windows), parallel_helper (threads)
 
@@ -86,7 +92,11 @@ compile_one() {
     echo "  MISSING $name in $dir" | tee -a "$LOG"
     return 1
   fi
-  emcc -c "${CFLAGS[@]}" "${INCS[@]}" "${DEFS[@]}" "$src" -o "$obj" 2>>"$LOG"
+  # -include omcweb_rt_compat.h fills minimal-mode gaps (enum omc_rt_clock_t,
+  # rt_accumulated, rt_set_clock). Cheap to apply to all TUs.
+  emcc -c "${CFLAGS[@]}" "${INCS[@]}" "${DEFS[@]}" \
+    -include "$(pwd)/src/omcweb_rt_compat.h" \
+    "$src" -o "$obj" 2>>"$LOG"
 }
 
 pass=0; fail=0; failed_files=()
@@ -125,6 +135,14 @@ if [ "$fail" -gt 0 ]; then
   echo "  failed:"
   printf '    %s\n' "${failed_files[@]}"
 fi
+
+# Our own runtime shim (rt_accumulated etc. that minimal-mode rtclock.h
+# doesn't provide but csv/mat4/solver_main expect to link against).
+echo "[simrt] src/omcweb_rt_compat.c"
+emcc -c "${CFLAGS[@]}" "${INCS[@]}" "${DEFS[@]}" src/omcweb_rt_compat.c \
+  -o "$BO/objs/omcweb_rt_compat.o" 2>>"$LOG" \
+  && pass=$((pass+1)) \
+  || { fail=$((fail+1)); failed_files+=(omcweb_rt_compat); }
 
 if [ "$pass" -gt 0 ]; then
   emar rcs build/libomc_sim.a "$BO/objs"/*.o
