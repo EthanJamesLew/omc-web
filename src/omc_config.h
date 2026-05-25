@@ -3,3 +3,9 @@
  * omc_config.unix.h; the wasm build maintains a hand-written
  * omc_config.unix.h with pinned values. */
 #include "omc_config.unix.h"
+
+#ifdef CONFIG_REVISION
+#define CONFIG_VERSION CONFIG_REVISION
+#else
+#define CONFIG_VERSION "unknown"
+#endif

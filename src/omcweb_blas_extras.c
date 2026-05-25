@@ -51,6 +51,16 @@ double ddot_(int *n, const double *x, const int *incx,
   return s;
 }
 
+void dscal_(int *n, const double *alpha, double *x, const int *incx) {
+  int i, nn = *n, sx = *incx;
+  double a = *alpha;
+  if (sx == 1) {
+    for (i = 0; i < nn; i++) x[i] *= a;
+  } else {
+    for (i = 0; i < nn; i++) x[i * sx] *= a;
+  }
+}
+
 void daxpy_(int *n, double *alpha, const double *x, const int *incx,
             double *y, const int *incy) {
   int i, nn = *n, sx = *incx, sy = *incy;

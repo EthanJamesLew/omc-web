@@ -17,7 +17,7 @@ B=build/deps/lapack
 INSTALL="$B/install"
 mkdir -p "$B/objs" "$INSTALL/lib" "$INSTALL/include"
 
-INCS=(-I "$SRC/include")
+INCS=(-I "$(pwd)/src" -I "$SRC/include")  # -I src first so our empty blaswrap.h wins
 CFLAGS=(-O2 -w)
 NPROC="${NPROC:-$(sysctl -n hw.logicalcpu 2>/dev/null || nproc)}"
 

@@ -30,6 +30,7 @@ INCS=(
   -I "$SIMRT_H/dataReconciliation"
   -I "$SIMRT_H/linearization"
   -I "$THIRDPARTY/gc/include"
+  -I "$THIRDPARTY/ryu/ryu"   # om_format.h for meta/realString.c
   # Real sundials wasm build (scripts/build-sundials-wasm.sh). Headers
   # land at install/include/sundials/{cvode,ida,kinsol,nvector,sundials,
   # sunlinsol,sunmatrix,sunnonlinsol}/*.h — the inner "sundials/" subdir
@@ -42,6 +43,7 @@ INCS=(
   # LIS (Library of Iterative Solvers) for the LIS-backed linear solver
   # path. Built by scripts/build-lis-wasm.sh.
   -I "$(pwd)/build/deps/lis/install/include"
+  -I "$(pwd)/build/deps/expat/install/include"
   -I "$THIRDPARTY/cJSON"
 )
 DEFS=(
@@ -63,14 +65,21 @@ UTIL_FILES=(
   ModelicaUtilities omc_error omc_file omc_init omc_numbers
   rational real_array ringbuffer simulation_options string_array utility
   varinfo
-  # rtclock dropped: under OMC_MINIMAL_RUNTIME=1 rtclock.h provides
-  # inline stubs and rtclock.c's body is incompatible (enum guards,
-  # redefinitions of the inline stubs). The functions csv/mat4/
-  # simulation_runtime actually CALL (rt_accumulated etc.) are missing
-  # from the minimal interface, so src/omcweb_rt_compat.c provides them
-  # as no-ops.
+  rtclock      # full rtclock under OMC_EMCC
+  omc_mmap     # modelinfo reads JSON via mmap; emscripten libc has it
+  read_matlab4 # provides matrix_transpose / matrix_transpose_uint32
+  read_csv libcsv write_csv write_matlab4
+  OldModelicaTables tinymt64
+  parallel_helper
 )
-# Excluded from UTIL: omc_mmap (mmap deps), omc_msvc (windows), parallel_helper (threads)
+# Excluded from UTIL: omc_msvc (windows), java_interface
+# parallel_helper is included because linearSystem.c uses omc_get_thread_num
+# and omc_get_max_threads even in non-threaded builds (they fall back to 1).
+
+META_FILES=( meta_modelica meta_modelica_builtin meta_modelica_segv meta_modelica_catch realString )
+GC_FILES=( memory_pool omc_gc )
+LINEARIZE_FILES=( linearize )
+DATARECON_FILES=( dataReconciliation )
 
 MATH_FILES=( pivot )
 
@@ -81,14 +90,24 @@ SOLVER_FILES=(
   delay discrete_changes model_help omc_math spatialDistribution stateset
   synchronous
   events external_input solver_main
+  dae_mode dassl cvode_solver ida_solver
+  kinsolSolver kinsol_b linearSolverKlu linearSolverLis
+  jacobian_analysis jacobianSymbolical
+  gbode_conf gbode_ctrl gbode_events gbode_internal_nls
+  gbode_nls gbode_sparse gbode_step gbode_tableau gbode_util
+  newtonIteration sundials_error sundials_util
+  # gbode_main dropped — it references the getDAG_JacA callback slot we
+  # removed (ABI version skew between OMBootstrapping-emitted CodegenC
+  # and OpenModelica HEAD's runtime). Bouncing ball uses CVODE/DASSL so
+  # gbode_main isn't on the hot path.
 )
 INIT_FILES=( initialization )
 
-RESULTS_FILES=( MatVer4 simulation_result_csv simulation_result_mat4 simulation_result )
+RESULTS_FILES=( MatVer4 simulation_result_csv simulation_result_mat4 simulation_result
+                simulation_result_plt simulation_result_ia )
 
-# Dropped: simulation_input_xml (needs expat, will stub elsewhere),
-#          socket (not in MEMFS world).
-SIM_FILES=( simulation_runtime modelinfo arrayIndex eval_dep
+# Dropped: socket (not in MEMFS world).
+SIM_FILES=( simulation_runtime modelinfo simulation_input_xml arrayIndex eval_dep
             jacobian_util omc_simulation_util options simulation_info_json
             simulation_omc_assert )
 
@@ -132,6 +151,14 @@ section() {
 
 echo "[simrt] util/"
 section "$SIMRT_H/util" "${UTIL_FILES[@]}"
+echo "[simrt] meta/"
+section "$SIMRT_H/meta" "${META_FILES[@]}"
+echo "[simrt] gc/"
+section "$SIMRT_H/gc" "${GC_FILES[@]}"
+echo "[simrt] linearization/"
+section "$SIMRT_H/linearization" "${LINEARIZE_FILES[@]}"
+echo "[simrt] dataReconciliation/"
+section "$SIMRT_H/dataReconciliation" "${DATARECON_FILES[@]}"
 echo "[simrt] math-support/"
 section "$SIMRT_H/math-support" "${MATH_FILES[@]}"
 echo "[simrt] simulation/solver/"
@@ -145,7 +172,7 @@ section "$SIMRT_H/simulation" "${SIM_FILES[@]}"
 
 # Linear/mixed/nonlinear dispatchers (minimal versions only — no KLU/Lapack)
 echo "[simrt] linear/mixed/nonlinear systems (dispatchers)"
-LINSYS_FILES=( linearSystem linearSolverTotalPivot linearSolverUmfpack )
+LINSYS_FILES=( linearSystem linearSolverTotalPivot linearSolverUmfpack linearSolverLapack )
 MIXEDSYS_FILES=( mixedSystem mixedSearchSolver )
 NONLINSYS_FILES=( nonlinearSystem nonlinearSolverHomotopy nonlinearSolverHybrd nonlinearValuesList )
 section "$SIMRT_H/simulation/solver" "${LINSYS_FILES[@]}"
