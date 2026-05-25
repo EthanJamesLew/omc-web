@@ -48,6 +48,7 @@ emcc -O2 --profiling-funcs \
   -s STACK_SIZE=64MB \
   -s SUPPORT_LONGJMP=1 \
   -s ASSERTIONS=1 \
+  -s SAFE_HEAP=${OMCWEB_SAFE_HEAP:-0} \
   -s FORCE_FILESYSTEM=1 \
   -s INVOKE_RUN=0 \
   -s EXIT_RUNTIME=0 \

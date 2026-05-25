@@ -9,7 +9,7 @@
 <body>
   <header>
     <h1>omc-web</h1>
-    <span class="tag">OpenModelica compiler + bouncing-ball simulator in WebAssembly</span>
+    <span class="tag">OpenModelica compiler in WebAssembly</span>
     <span id="status" class="status">loading…</span>
   </header>
 
@@ -21,57 +21,61 @@
           <option value="BouncingBall">Bouncing ball (uses MSL)</option>
           <option value="Trivial">Trivial empty model</option>
         </select>
-        <button id="compile" disabled>Compile &amp; simulate</button>
+        <button id="compile" disabled>Run OMC</button>
       </div>
       <textarea id="source" spellcheck="false"></textarea>
     </section>
 
     <section class="result-pane">
       <div class="pane-header">
-        <span>Result</span>
-        <span id="plotinfo" class="plotinfo"></span>
+        <span>OMC output</span>
         <button id="clear">Clear</button>
       </div>
-      <canvas id="plot" class="plot"></canvas>
       <pre id="output"></pre>
     </section>
   </main>
 
   <footer>
     <details>
-      <summary>How this works (and what's still TODO)</summary>
-      <p>Clicking "Compile &amp; simulate" drives two paths in parallel:</p>
-      <ol>
-        <li><strong>omc.wasm</strong> — the OpenModelica bootstrap compiler runs over your
-            source. Today it parses, opens the file, and hits its stubbed
-            <code>CevalScriptBackend.translateModel</code> — that's why the
-            output panel still shows OMC's "Error processing file:"
-            diagnostic. This is the same code that, with the remaining
-            milestones below, will eventually produce simulation output
-            for arbitrary Modelica models.</li>
-        <li><strong>Built-in JS solver</strong> — a small registry of known models
-            (BouncingBall + a trivial integrator) runs hand-written
-            numerical equivalents with RK4 + event detection. THIS is what
-            produces the plot you see. Parameter overrides in your source
-            (e.g. <code>parameter Real e = 0.7</code>) are picked up via
-            regex and actually fed to the solver.</li>
-      </ol>
-      <p><strong>Remaining work for path 1 to produce the same plot:</strong></p>
+      <summary>State of the port</summary>
+      <p>This page loads our wasm-compiled OpenModelica compiler and runs it
+      on whatever Modelica source you put in the editor. The compiler IS OMC —
+      built from OMBootstrapping's pre-generated C of the full compiler (894
+      sources, BackEnd + SimCode + CodegenC all present, none of them stubbed).
+      What you see in the output panel comes from OMC itself.</p>
+
+      <p><strong>Currently working:</strong></p>
       <ul>
-        <li>Wire <code>OPENMODELICAHOME</code> so OMC's classloader finds built-in classes.</li>
-        <li>Bake the Modelica Standard Library into the VFS.</li>
-        <li>Replace stubbed <code>CevalScriptBackend</code>, Backend, and SimCode with real impls.</li>
-        <li>Bundle wasm-clang to compile generated simulation C into a per-model wasm.</li>
-        <li>Build sundials + simulation runtime as a static wasm archive.</li>
+        <li>omc.wasm links cleanly with 0 unresolved symbols (19 MB).</li>
+        <li>The wasm runtime initialises, parses argv, opens files from MEMFS.</li>
+        <li>OMC's front-end starts processing your source.</li>
       </ul>
-      <p>See <code>omc-web/ROADMAP.md</code> and <code>SMOKE-RESULTS.md</code>.</p>
+
+      <p><strong>Currently failing:</strong></p>
+      <ul>
+        <li>Both the <code>.mo</code> path (via <code>loadFile</code> → <code>List.map2</code>)
+            and the <code>.mos</code> scripting path (via <code>evaluateToStdOut</code>) hit
+            <strong>alignment faults</strong> inside MetaModelica's record-field reads. SAFE_HEAP
+            traps the misalignment but the offending callsite is deep in OMC's
+            generated C, not in our shim layer.</li>
+        <li>Probable cause: one of the ~165 auto-generated stubs returns
+            data with wrong tag/alignment, or there's a wasm pointer-width
+            mismatch in a hand-written runtime function. Debug requires
+            building with -g, instrumenting MMC_FETCH, and tracing.</li>
+      </ul>
+
+      <p><strong>Not yet wired (next-layer work):</strong></p>
+      <ul>
+        <li>OPENMODELICAHOME directory layout in MEMFS (so MSL imports resolve).</li>
+        <li>wasm-clang for compiling OMC's generated C in-browser.</li>
+        <li>sundials + simulation runtime as a wasm static archive to link the per-model output against.</li>
+      </ul>
+
+      <p>See <code>omc-web/SMOKE-RESULTS.md</code> and <code>ROADMAP.md</code>.</p>
     </details>
   </footer>
 
   <script>
-    // Must set up Module BEFORE omc.js loads — emscripten's `var Module = ...`
-    // captures it once at top-level, so handlers set later won't be honoured.
-    // The real handlers in app.js install themselves via these bridges.
     window.__omcweb = { out: [], handlers: {} };
     window.Module = {
       noInitialRun: true,
@@ -81,6 +85,6 @@
     };
   </script>
   <script src="omc.js"></script>
-  <script type="module" src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

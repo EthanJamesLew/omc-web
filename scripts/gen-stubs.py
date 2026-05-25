@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""Generate C stub implementations for `extern` C symbols that the OMC
-bootstrap C expects from the Compiler/runtime/ shim layer.
+"""Generate C stub implementations for the `extern` C functions that OMC's
+MetaModelica-generated C calls into. These are the "Compiler/runtime/"
+shim layer that real OMC provides via hand-written .c/.cpp; we provide
+no-op defaults so the wasm can link and run.
 
-Reads a list of unresolved symbols from build/undefined-symbols.txt, looks
-up each one's signature in the bootstrap-sources/build/*.h headers, and
-emits a stub function returning a default value (0, NULL, mmc_mk_nil(), ...).
+Strategy: scan the OMC bootstrap-sources build headers (a select set
+that hosts the System/Settings/Print/etc. extern declarations) and emit
+a default-value stub (`return 0`, `""`, `mmc_mk_nil()`, …) for every
+function. Hand-written stubs in src/omcweb_stubs.c take precedence
+(emitted as static inline shims of the same name would not — that
+would cause linker conflicts — so we check the hand file and skip any
+symbol it defines).
 
-The output goes to src/omcweb_stubs_auto.c. It's intentionally a SEPARATE
-file from the hand-written src/omcweb_stubs.c so a human-written stub
-always takes precedence (the auto stubs only get linked for symbols not
-already provided).
+The output is src/omcweb_stubs_auto.c. Idempotent and complete: no
+iteration with build/undefined-symbols.txt is needed.
 
-Usage:
   python3 scripts/gen-stubs.py
 """
 from __future__ import annotations
@@ -21,11 +24,41 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-UNRESOLVED = ROOT / "build" / "undefined-symbols.txt"
-HEADERS_DIR = Path(os.environ.get(
-    "OMC_BUILD_HEADERS",
-    "/tmp/OpenModelica/OMCompiler/Compiler/boot/bootstrap-sources/build",
-))
+
+# Which header files host the runtime-shim externs. These are the .h files
+# in bootstrap-sources/build/ that correspond to OMC modules with
+# `external "C"` MetaModelica bindings into Compiler/runtime/*. We
+# intentionally do NOT scan every .h — most are pure-MetaModelica modules
+# whose externs are within the bootstrap C itself, already linked.
+SHIM_HEADERS = [
+    "System.h", "Settings.h", "Print.h", "ErrorExt.h", "Error.h",
+    "Curl.h", "FFI.h", "OMSimulatorExt.h", "ZeroMQ.h", "Socket.h",
+    "Lapack.h", "BackendDAEEXT.h", "ASSCEXT.h", "ParserExt.h",
+    "Database.h", "IOStreamExt.h", "JSONExt.h", "Dynload.h",
+    "UnitParserExt.h", "PackageManagement.h", "FMIExt.h",
+    "VarTransform.h", "Corba.h", "DiffAlgorithm.h",
+    "TaskGraphResults.h", "HpcOmBenchmarkExt.h", "HpcOmSchedulerExt.h",
+    "ZeroCrossings.h", "UnitChecker.h", "Unzip.h", "GraphML.h",
+    "SimulationResults.h", "Refactor.h", "RewriteRules.h",
+    "Figaro.h", "Obfuscate.h",
+]
+def _find_headers() -> Path:
+    """Prefer OMBootstrapping (full compiler) — its headers cover signatures
+    only referenced by the real Backend/SimCode. Fall back to the in-tree
+    bootstrap headers if OMBootstrapping isn't present."""
+    env = os.environ.get("OMC_BUILD_HEADERS")
+    if env:
+        return Path(env)
+    candidates = [
+        Path("/tmp/OMBootstrapping/bootstrap-sources/build"),
+        Path("/tmp/OpenModelica/OMCompiler/Compiler/boot/bootstrap-sources/build"),
+    ]
+    for c in candidates:
+        if c.is_dir():
+            return c
+    raise RuntimeError("no OMC bootstrap-sources/build directory found")
+
+HEADERS_DIR = _find_headers()
 STUB_FILE = ROOT / "src" / "omcweb_stubs_auto.c"
 HAND_FILE = ROOT / "src" / "omcweb_stubs.c"
 
@@ -41,10 +74,14 @@ def load_symbols(path: Path) -> list[str]:
     return [line.strip() for line in path.read_text().splitlines() if line.strip()]
 
 
-def index_headers(dir: Path) -> dict[str, tuple[str, str, str]]:
-    """Return {name: (return_type, args_text, header_file)}."""
+def index_headers(dir: Path, only: list[str] | None = None) -> dict[str, tuple[str, str, str]]:
+    """Return {name: (return_type, args_text, header_file)}. If `only` is
+    given, restrict to that list of header filenames."""
     idx: dict[str, tuple[str, str, str]] = {}
-    for hdr in dir.glob("*.h"):
+    headers = [dir / n for n in only] if only else list(dir.glob("*.h"))
+    for hdr in headers:
+        if not hdr.exists():
+            continue
         try:
             text = hdr.read_text()
         except UnicodeDecodeError:
@@ -99,15 +136,51 @@ def emit_stub(name: str, ret: str, args: str) -> str:
     return f"{ret} {name}({args_clean}) {{\n{body_line}\n}}\n"
 
 
+def _externals_in_file(path: Path) -> set[str]:
+    """Function names DEFINED in a source/object .c file (so we don't
+    duplicate them)."""
+    if not path.exists():
+        return set()
+    text = path.read_text(errors="replace")
+    return set(re.findall(r"^\s*(?:extern\s+)?[\w\s\*]+?\s([A-Z][A-Za-z_0-9]*)\s*\([^)]*\)\s*\{", text, re.MULTILINE))
+
+
+def _symbols_in_archive(ar: Path) -> set[str]:
+    """`T` (text) symbols defined in a .a archive. Need emsdk env activated."""
+    if not ar.exists():
+        return set()
+    import subprocess
+    r = subprocess.run(["emnm", str(ar)], capture_output=True, text=True)
+    if r.returncode != 0:
+        return set()
+    out = set()
+    for line in r.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[1] in ("T", "W"):
+            out.add(parts[2])
+    return out
+
+
 def main() -> int:
-    if not UNRESOLVED.exists():
-        print(f"missing {UNRESOLVED}; run scripts/link.sh first", file=sys.stderr)
-        return 1
-    symbols = load_symbols(UNRESOLVED)
-    index = index_headers(HEADERS_DIR)
-    skip = hand_provided(HAND_FILE) | hand_provided(STUB_FILE)
-    # Keep previously-emitted auto-stubs by re-adding them as already-emitted.
-    previously_auto = hand_provided(STUB_FILE)
+    # Index every extern in the shim headers. We emit a stub for every one,
+    # then let the linker pick up only the symbols actually referenced —
+    # this avoids the "iterate until convergence" drift entirely.
+    index = index_headers(HEADERS_DIR, only=SHIM_HEADERS)
+    skip = hand_provided(HAND_FILE)
+
+    # Skip anything OMBootstrapping already defines in FakeBoostrappingExternals.c
+    # to avoid duplicate-symbol link errors.
+    fake_path = HEADERS_DIR / "FakeBoostrappingExternals.c"
+    skip |= _externals_in_file(fake_path)
+
+    # Skip anything we already provide via the runtime/simrt archives or
+    # the OMBootstrapping fake-externals shim, so we don't produce
+    # duplicate-symbol link errors.
+    for ar in ("libomcruntime.a", "libomcsimrt.a", "libomcbootstrap.a"):
+        skip |= _symbols_in_archive(ROOT / "build" / ar)
+
+    symbols = sorted(index.keys())
+    previously_auto = set()  # unused now; kept for compatibility
 
     missing_sig = []
     emitted: list[tuple[str, str, str, str]] = []

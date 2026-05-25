@@ -9,49 +9,369 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* --- from Settings.h --- */
-void SettingsImpl__setCompileCommand(const char*) {
-
-}
-
-void SettingsImpl__setInstallationDirectoryPath(const char*) {
-
-}
-
-void SettingsImpl__setModelicaPath(const char*) {
-
-}
-
-void SettingsImpl__setTempDirectoryPath(const char*) {
-
-}
-
-const char* Settings_getCompileCommand(void) {
-  return "";
-}
-
-int Settings_getEcho(void) {
+/* --- from Curl.h --- */
+int om_curl_multi_download(modelica_metatype , int) {
   return 0;
 }
 
-const char* Settings_getHomeDir(int) {
+/* --- from FFI.h --- */
+modelica_metatype FFI_callFunction(int , modelica_metatype , modelica_metatype , modelica_metatype , modelica_metatype*) {
+  return mmc_mk_nil();
+}
+
+/* --- from OMSimulatorExt.h --- */
+int OMSimulator_loadDLL(void) {
+  return 0;
+}
+
+int OMSimulator_oms_RunFile(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_addBus(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_addConnection(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_addConnector(const char* , int , int) {
+  return 0;
+}
+
+int OMSimulator_oms_addConnectorToBus(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_addConnectorToTLMBus(const char* , const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_addDynamicValueIndicator(const char* , const char* , const char* , double) {
+  return 0;
+}
+
+int OMSimulator_oms_addEventIndicator(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_addExternalModel(const char* , const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_addSignalsToResults(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_addStaticValueIndicator(const char* , double , double , double) {
+  return 0;
+}
+
+int OMSimulator_oms_addSubModel(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_addSystem(const char* , int) {
+  return 0;
+}
+
+int OMSimulator_oms_addTLMBus(const char* , int , int , int) {
+  return 0;
+}
+
+int OMSimulator_oms_addTLMConnection(const char* , const char* , double , double , double , double) {
+  return 0;
+}
+
+int OMSimulator_oms_addTimeIndicator(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_compareSimulationResults(const char* , const char* , const char* , double , double) {
+  return 0;
+}
+
+int OMSimulator_oms_copySystem(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_delete(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_deleteConnection(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_deleteConnectorFromBus(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_deleteConnectorFromTLMBus(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_export(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_exportDependencyGraphs(const char* , const char* , const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_exportSnapshot(const char* , const char**) {
+  return 0;
+}
+
+int OMSimulator_oms_extractFMIKind(const char* , int*) {
+  return 0;
+}
+
+int OMSimulator_oms_faultInjection(const char* , int , double) {
+  return 0;
+}
+
+int OMSimulator_oms_getBoolean(const char* , int*) {
+  return 0;
+}
+
+int OMSimulator_oms_getFixedStepSize(const char* , double*) {
+  return 0;
+}
+
+int OMSimulator_oms_getInteger(const char* , int*) {
+  return 0;
+}
+
+int OMSimulator_oms_getModelState(const char* , int*) {
+  return 0;
+}
+
+int OMSimulator_oms_getReal(const char* , double*) {
+  return 0;
+}
+
+int OMSimulator_oms_getSolver(const char* , int*) {
+  return 0;
+}
+
+int OMSimulator_oms_getStartTime(const char* , double*) {
+  return 0;
+}
+
+int OMSimulator_oms_getStopTime(const char* , double*) {
+  return 0;
+}
+
+int OMSimulator_oms_getSubModelPath(const char* , const char**) {
+  return 0;
+}
+
+int OMSimulator_oms_getSystemType(const char* , int*) {
+  return 0;
+}
+
+int OMSimulator_oms_getTolerance(const char* , double* , double*) {
+  return 0;
+}
+
+int OMSimulator_oms_getVariableStepSize(const char* , double* , double* , double*) {
+  return 0;
+}
+
+const char* OMSimulator_oms_getVersion(void) {
   return "";
 }
 
-const char* Settings_getInstallationDirectoryPath(void) {
-  return "";
+int OMSimulator_oms_importFile(const char* , const char**) {
+  return 0;
 }
 
-const char* Settings_getModelicaPath(int) {
-  return "";
+int OMSimulator_oms_importSnapshot(const char* , const char*) {
+  return 0;
 }
 
-const char* Settings_getTempDirectoryPath(void) {
-  return "";
+int OMSimulator_oms_initialize(const char*) {
+  return 0;
 }
 
-const char* Settings_getVersionNr(void) {
-  return "";
+int OMSimulator_oms_instantiate(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_list(const char* , const char**) {
+  return 0;
+}
+
+int OMSimulator_oms_listUnconnectedConnectors(const char* , const char**) {
+  return 0;
+}
+
+int OMSimulator_oms_loadSnapshot(const char* , const char* , const char**) {
+  return 0;
+}
+
+int OMSimulator_oms_newModel(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_removeSignalsFromResults(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_rename(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_reset(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_setBoolean(const char* , int) {
+  return 0;
+}
+
+int OMSimulator_oms_setCommandLineOption(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_setFixedStepSize(const char* , double) {
+  return 0;
+}
+
+int OMSimulator_oms_setInteger(const char* , int) {
+  return 0;
+}
+
+int OMSimulator_oms_setLogFile(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_setLoggingInterval(const char* , double) {
+  return 0;
+}
+
+int OMSimulator_oms_setLoggingLevel(int) {
+  return 0;
+}
+
+int OMSimulator_oms_setReal(const char* , double) {
+  return 0;
+}
+
+int OMSimulator_oms_setRealInputDerivative(const char* , double) {
+  return 0;
+}
+
+int OMSimulator_oms_setResultFile(const char* , const char* , int) {
+  return 0;
+}
+
+int OMSimulator_oms_setSignalFilter(const char* , const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_setSolver(const char* , int) {
+  return 0;
+}
+
+int OMSimulator_oms_setStartTime(const char* , double) {
+  return 0;
+}
+
+int OMSimulator_oms_setStopTime(const char* , double) {
+  return 0;
+}
+
+int OMSimulator_oms_setTLMPositionAndOrientation(const char* , double , double , double , double , double , double , double , double , double , double , double , double) {
+  return 0;
+}
+
+int OMSimulator_oms_setTLMSocketData(const char* , const char* , int , int) {
+  return 0;
+}
+
+int OMSimulator_oms_setTempDirectory(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_setTolerance(const char* , double , double) {
+  return 0;
+}
+
+int OMSimulator_oms_setVariableStepSize(const char* , double , double , double) {
+  return 0;
+}
+
+int OMSimulator_oms_setWorkingDirectory(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_simulate(const char*) {
+  return 0;
+}
+
+int OMSimulator_oms_stepUntil(const char* , double) {
+  return 0;
+}
+
+int OMSimulator_oms_terminate(const char*) {
+  return 0;
+}
+
+int OMSimulator_unloadDLL(void) {
+  return 0;
+}
+
+/* --- from ParserExt.h --- */
+int ParserExt_checkLVEToolFeature(modelica_metatype , const char*) {
+  return 0;
+}
+
+int ParserExt_checkLVEToolLicense(modelica_metatype , const char*) {
+  return 0;
+}
+
+modelica_metatype ParserExt_parse(const char* , const char* , int , int , int , const char* , int , const char* , modelica_metatype) {
+  return mmc_mk_nil();
+}
+
+modelica_metatype ParserExt_parseexp(const char* , const char* , int , int , int) {
+  return mmc_mk_nil();
+}
+
+modelica_metatype ParserExt_parsestring(const char* , const char* , int , int , int , int) {
+  return mmc_mk_nil();
+}
+
+modelica_metatype ParserExt_parsestringexp(const char* , const char* , int , int , int) {
+  return mmc_mk_nil();
+}
+
+int ParserExt_startLibraryVendorExecutable(const char* , modelica_metatype*) {
+  return 0;
+}
+
+void ParserExt_stopLibraryVendorExecutable(modelica_metatype) {
+
+}
+
+modelica_metatype ParserExt_stringCref(const char* , const char* , int , int , int) {
+  return mmc_mk_nil();
+}
+
+modelica_metatype ParserExt_stringMod(const char* , const char* , int , int , int) {
+  return mmc_mk_nil();
+}
+
+modelica_metatype ParserExt_stringPath(const char* , const char* , int , int , int) {
+  return mmc_mk_nil();
+}
+
+/* --- from Settings.h --- */
+int Settings_getEcho(void) {
+  return 0;
 }
 
 void Settings_setEcho(int) {
@@ -63,6 +383,10 @@ int SystemImpl__chdir(const char*) {
   return 0;
 }
 
+int SystemImpl__covertTextFileToCLiteral(const char* , const char* , const char*) {
+  return 0;
+}
+
 int SystemImpl__createDirectory(const char*) {
   return 0;
 }
@@ -71,8 +395,40 @@ const char* SystemImpl__createTemporaryDirectory(const char*) {
   return "";
 }
 
+int SystemImpl__dgesv(modelica_metatype , modelica_metatype , modelica_metatype*) {
+  return 0;
+}
+
+double SystemImpl__getCurrentTime(void) {
+  return 0.0;
+}
+
+void SystemImpl__loadModelCallBack(OpenModelica_threadData_ThreadData*, const char*) {
+
+}
+
+int SystemImpl__loadModelCallBackDefined(OpenModelica_threadData_ThreadData*) {
+  return 0;
+}
+
+void SystemImpl__plotCallBack(OpenModelica_threadData_ThreadData*, int , const char* , const char* , const char* , const char* , const char* , const char* , const char* , const char* , const char* , const char* , const char* , const char* , const char* , const char* , const char* , const char* , const char* , const char*) {
+
+}
+
+int SystemImpl__plotCallBackDefined(OpenModelica_threadData_ThreadData*) {
+  return 0;
+}
+
 const char* SystemImpl__pwd(void) {
   return "";
+}
+
+double SystemImpl__realRand(void) {
+  return 0.0;
+}
+
+int SystemImpl__relocateFunctions(const char* , modelica_metatype) {
+  return 0;
 }
 
 void SystemImpl__setCCompiler(const char*) {
@@ -95,6 +451,10 @@ void SystemImpl__setLinker(const char*) {
 
 }
 
+int SystemImpl__spawnCall(const char* , const char*) {
+  return 0;
+}
+
 int SystemImpl__systemCall(const char* , const char*) {
   return 0;
 }
@@ -103,12 +463,32 @@ modelica_metatype SystemImpl__systemCallParallel(modelica_metatype , int) {
   return mmc_mk_nil();
 }
 
+void SystemImpl__waitForInput(void) {
+
+}
+
+const char* SystemImpl__winGetSystemDirectoryA(void) {
+  return "";
+}
+
 void System_appendFile(const char* , const char*) {
+
+}
+
+void System_freeFunction(int , int) {
 
 }
 
 void System_freeLibrary(int , int) {
 
+}
+
+const char* System_gccDumpMachine(void) {
+  return "";
+}
+
+const char* System_gccVersion(void) {
+  return "";
 }
 
 const char* System_getCCompiler(void) {
@@ -123,6 +503,26 @@ const char* System_getCXXCompiler(void) {
   return "";
 }
 
+const char* System_getClassnamesForSimulation(void) {
+  return "";
+}
+
+void System_getCurrentDateTime(int* , int* , int* , int* , int* , int*) {
+
+}
+
+const char* System_getCurrentTimeStr(void) {
+  return "";
+}
+
+modelica_metatype System_getFileModificationTime(const char*) {
+  return mmc_mk_nil();
+}
+
+int System_getHasOverconstrainedConnectors(void) {
+  return 0;
+}
+
 const char* System_getLDFlags(void) {
   return "";
 }
@@ -135,7 +535,35 @@ const char* System_getOMPCCompiler(void) {
   return "";
 }
 
-int System_loadLibrary(const char* , int) {
+double System_getTimerCummulatedTime(void) {
+  return 0.0;
+}
+
+double System_getTimerElapsedTime(void) {
+  return 0.0;
+}
+
+double System_getTimerIntervalTime(void) {
+  return 0.0;
+}
+
+int System_getTimerStackIndex(void) {
+  return 0;
+}
+
+const char* System_getUUIDStr(void) {
+  return "";
+}
+
+double System_getVariableValue(double , modelica_metatype , modelica_metatype) {
+  return 0.0;
+}
+
+int System_getuid(void) {
+  return 0;
+}
+
+int System_loadLibrary(const char* , int , int) {
   return 0;
 }
 
@@ -147,6 +575,14 @@ const char* System_makeC89Identifier(const char*) {
   return "";
 }
 
+const char* System_openModelicaPlatformAlternative(void) {
+  return "";
+}
+
+const char* System_popen(OpenModelica_threadData_ThreadData*, const char* , int*) {
+  return "";
+}
+
 const char* System_readEnv(const char*) {
   return "";
 }
@@ -155,52 +591,73 @@ const char* System_readFile(const char*) {
   return "";
 }
 
+double System_realtimeAccumulate(int) {
+  return 0.0;
+}
+
+double System_realtimeAccumulated(int) {
+  return 0.0;
+}
+
 modelica_metatype System_regex(const char* , const char* , int , int , int , int*) {
   return mmc_mk_nil();
 }
 
-int System_stringFind(const char* , const char*) {
-  return 0;
+void System_resetTimer(void) {
+
 }
 
-const char* System_stringReplace(const char* , const char* , const char*) {
+void System_setClassnamesForSimulation(const char*) {
+
+}
+
+void System_setUsesCardinality(int) {
+
+}
+
+const char* System_sprintff(const char* , double) {
   return "";
 }
 
-int System_strncmp(const char* , const char* , int) {
+void System_startTimer(void) {
+
+}
+
+void System_stopTimer(void) {
+
+}
+
+int System_strcmp(const char* , const char*) {
   return 0;
 }
 
-modelica_metatype System_strtok(const char* , const char*) {
-  return mmc_mk_nil();
+int System_strcmp_offset(const char* , int , int , const char* , int , int) {
+  return 0;
 }
 
-modelica_metatype System_strtokIncludingDelimiters(const char* , const char*) {
-  return mmc_mk_nil();
+const char* System_stringFindString(const char* , const char*) {
+  return "";
 }
 
 modelica_metatype System_subDirectories(const char*) {
   return mmc_mk_nil();
 }
 
-const char* System_tolower(const char*) {
-  return "";
-}
+void System_threadFail(OpenModelica_threadData_ThreadData*) {
 
-const char* System_toupper(const char*) {
-  return "";
-}
-
-const char* System_trim(const char* , const char*) {
-  return "";
-}
-
-const char* System_trimChar(const char* , const char*) {
-  return "";
 }
 
 void System_writeFile(const char* , const char*) {
 
+}
+
+int setenv(const char* , const char* , int) {
+  return 0;
+}
+
+/* --- from Unzip.h --- */
+int om_unzip(const char* , const char* , const char*) {
+  return 0;
 }
 
 /* --- from ZeroMQ.h --- */

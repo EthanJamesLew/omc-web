@@ -21,6 +21,7 @@
 #include "meta/meta_modelica.h"
 #include "openmodelica.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,13 +31,15 @@
 
 /* ---- file-ish I/O — pass through to libc / emscripten FS ---------------- */
 
-int SystemImpl__stat(const char* filename, double* out_size, double* out_mtime) {
+int SystemImpl__stat(const char* filename, double* out_size, double* out_mtime, int* out_type) {
   /* Note: <sys/stat.h> defines st_mtime as a macro, so do not name params
-   * `st_size`/`st_mtime`. The upstream signature is 3 args, not 4. */
+   * `st_size`/`st_mtime`. OMBootstrapping's 4-arg variant; the older
+   * bootstrap-sources had 3 args. */
   struct stat sb;
-  if (stat(filename, &sb) != 0) { *out_size = 0; *out_mtime = 0; return 0; }
+  if (stat(filename, &sb) != 0) { *out_size = 0; *out_mtime = 0; *out_type = 0; return 0; }
   *out_size  = (double) sb.st_size;
   *out_mtime = (double) sb.st_mtime;
+  *out_type  = S_ISDIR(sb.st_mode) ? 2 : (S_ISREG(sb.st_mode) ? 1 : 0);
   return 1;
 }
 
@@ -163,6 +166,39 @@ const char* System_dirname(const char* p) {
 
 int System_userIsRoot(void) { return 0; }
 
+/* ---- Settings.h backings ------------------------------------------------ */
+/* OMC discovers its installation by Settings_getInstallationDirectoryPath().
+ * From there it derives library/script paths. We bake an OPENMODELICAHOME
+ * layout into MEMFS at /omc (see app.js) and point OMC at it here. */
+static char omcweb_omhome[256]       = "/omc";
+static char omcweb_modelicapath[512] = "/omc/lib/omlibrary";
+static char omcweb_tempdir[256]      = "/tmp";
+
+const char* Settings_getInstallationDirectoryPath(void) { return omcweb_omhome; }
+void SettingsImpl__setInstallationDirectoryPath(const char* p) {
+  if (p) { strncpy(omcweb_omhome, p, sizeof(omcweb_omhome) - 1); omcweb_omhome[sizeof(omcweb_omhome)-1] = 0; }
+}
+const char* Settings_getModelicaPath(int t) { (void)t; return omcweb_modelicapath; }
+void SettingsImpl__setModelicaPath(const char* p) {
+  if (p) { strncpy(omcweb_modelicapath, p, sizeof(omcweb_modelicapath) - 1); omcweb_modelicapath[sizeof(omcweb_modelicapath)-1] = 0; }
+}
+const char* Settings_getTempDirectoryPath(void) { return omcweb_tempdir; }
+void SettingsImpl__setTempDirectoryPath(const char* p) {
+  if (p) { strncpy(omcweb_tempdir, p, sizeof(omcweb_tempdir) - 1); omcweb_tempdir[sizeof(omcweb_tempdir)-1] = 0; }
+}
+const char* Settings_getHomeDir(int t) {
+  /* Returning "" makes PackageManagement.installCachedPackages short-circuit
+   * (it does `if homeDir == "" then return;`). The browser MEMFS has no
+   * persistent user library cache, so this is correct. */
+  (void)t; return "";
+}
+const char* Settings_getVersionNr(void) { return "1.26.0-omc-web"; }
+static char omcweb_cccmd[1024] = "emcc";
+const char* Settings_getCompileCommand(void) { return omcweb_cccmd; }
+void SettingsImpl__setCompileCommand(const char* c) {
+  if (c) { strncpy(omcweb_cccmd, c, sizeof(omcweb_cccmd) - 1); omcweb_cccmd[sizeof(omcweb_cccmd)-1] = 0; }
+}
+
 /* SystemImpl__basename: same idea as System_basename but distinct symbol
  * (Compiler/runtime/printimpl.c and SimulationResults.c call this directly). */
 const char* SystemImpl__basename(const char* p) {
@@ -191,6 +227,168 @@ const char* SystemImpl__iconv__ascii(const char* s) {
 void* lookup_ptr(int idx) {
   (void) idx;
   return 0;
+}
+
+/* ---- string operations that OMC's MetaModelica relies on --------------- */
+/* Auto-stubs would return mmc_mk_nil() for these, which silently breaks
+ * isModelicaFile (file extension parsing), URI parsing, etc. */
+
+modelica_metatype System_strtok(const char* str, const char* sep) {
+  /* Split `str` on any character in `sep`, returning a MetaModelica list
+   * of strings. Empty tokens between consecutive separators are dropped
+   * (POSIX strtok semantics). */
+  modelica_metatype lst = mmc_mk_nil();
+  if (!str || !sep) return lst;
+  size_t slen = strlen(str);
+  char* buf = (char*) malloc(slen + 1);
+  if (!buf) return lst;
+  memcpy(buf, str, slen + 1);
+
+  /* Build in reverse, then reverse via cons chain. Simpler: collect into
+   * a temp array then build the cons list in reverse. */
+  char** toks = NULL; size_t n = 0, cap = 0;
+  char* save = NULL;
+  for (char* t = strtok_r(buf, sep, &save); t; t = strtok_r(NULL, sep, &save)) {
+    if (n == cap) { cap = cap ? cap * 2 : 8; toks = (char**) realloc(toks, cap * sizeof(*toks)); }
+    toks[n++] = t;
+  }
+  for (size_t i = n; i > 0; i--) {
+    lst = mmc_mk_cons(mmc_mk_scon(toks[i - 1]), lst);
+  }
+  free(toks);
+  free(buf);
+  return lst;
+}
+
+modelica_metatype System_strtokIncludingDelimiters(const char* str, const char* sep) {
+  /* Like strtok but keeps the delimiter as its own token. Used by OMC's
+   * path parsers. */
+  modelica_metatype lst = mmc_mk_nil();
+  if (!str || !sep) return lst;
+  size_t slen = strlen(str), seplen = strlen(sep);
+  if (slen == 0) return lst;
+
+  char** toks = NULL; size_t n = 0, cap = 0;
+  size_t i = 0;
+  while (i < slen) {
+    /* find next occurrence of sep */
+    char* p = strstr(str + i, sep);
+    size_t end = p ? (size_t)(p - str) : slen;
+    if (end > i) {
+      size_t l = end - i;
+      char* t = (char*) malloc(l + 1);
+      memcpy(t, str + i, l); t[l] = 0;
+      if (n == cap) { cap = cap ? cap * 2 : 8; toks = (char**) realloc(toks, cap * sizeof(*toks)); }
+      toks[n++] = t;
+    }
+    if (!p) break;
+    /* include delimiter */
+    char* d = (char*) malloc(seplen + 1);
+    memcpy(d, sep, seplen + 1);
+    if (n == cap) { cap = cap ? cap * 2 : 8; toks = (char**) realloc(toks, cap * sizeof(*toks)); }
+    toks[n++] = d;
+    i = end + seplen;
+  }
+  for (size_t k = n; k > 0; k--) {
+    lst = mmc_mk_cons(mmc_mk_scon(toks[k - 1]), lst);
+    free(toks[k - 1]);
+  }
+  free(toks);
+  return lst;
+}
+
+modelica_metatype System_splitOnNewline(const char* str, int includeDelim) {
+  (void) includeDelim;
+  return System_strtok(str, "\n");
+}
+
+const char* System_trim(const char* str, const char* chars) {
+  if (!str) return "";
+  if (!chars) chars = " \t\r\n";
+  size_t start = 0; size_t end = strlen(str);
+  while (start < end && strchr(chars, str[start])) start++;
+  while (end > start && strchr(chars, str[end - 1])) end--;
+  char* out = (char*) malloc(end - start + 1);
+  memcpy(out, str + start, end - start); out[end - start] = 0;
+  return out;
+}
+
+const char* System_trimChar(const char* str, const char* ch) {
+  return System_trim(str, ch);
+}
+
+const char* System_tolower(const char* str) {
+  if (!str) return "";
+  size_t n = strlen(str);
+  char* out = (char*) malloc(n + 1);
+  for (size_t i = 0; i < n; i++) out[i] = (char) tolower((unsigned char) str[i]);
+  out[n] = 0;
+  return out;
+}
+
+const char* System_toupper(const char* str) {
+  if (!str) return "";
+  size_t n = strlen(str);
+  char* out = (char*) malloc(n + 1);
+  for (size_t i = 0; i < n; i++) out[i] = (char) toupper((unsigned char) str[i]);
+  out[n] = 0;
+  return out;
+}
+
+int System_strncmp(const char* a, const char* b, int n) {
+  return strncmp(a ? a : "", b ? b : "", (size_t) (n > 0 ? n : 0));
+}
+
+int System_stringFind(const char* hay, const char* needle) {
+  if (!hay || !needle) return -1;
+  const char* p = strstr(hay, needle);
+  return p ? (int)(p - hay) : -1;
+}
+
+const char* System_stringReplace(const char* src, const char* from, const char* to) {
+  if (!src) return "";
+  if (!from || !*from) {
+    size_t n = strlen(src) + 1;
+    char* out = (char*) malloc(n);
+    memcpy(out, src, n);
+    return out;
+  }
+  if (!to) to = "";
+  size_t fl = strlen(from), tl = strlen(to);
+  size_t cap = strlen(src) + 1;
+  char* out = (char*) malloc(cap);
+  size_t w = 0;
+  for (const char* p = src; *p; ) {
+    if (strncmp(p, from, fl) == 0) {
+      if (w + tl + 1 > cap) { cap = (w + tl + 1) * 2; out = (char*) realloc(out, cap); }
+      memcpy(out + w, to, tl); w += tl;
+      p += fl;
+    } else {
+      if (w + 2 > cap) { cap *= 2; out = (char*) realloc(out, cap); }
+      out[w++] = *p++;
+    }
+  }
+  out[w] = 0;
+  return out;
+}
+
+/* OMC writes errors via SystemImpl__fputs with StreamType ∈ {STDOUT=1, STDERR=2}
+ * — so we need a real implementation, not the auto-stubbed 0-return. */
+int SystemImpl__fputs(const char* s, int streamType) {
+  FILE* dest = (streamType == 2) ? stderr : stdout;
+  return fputs(s, dest);
+}
+
+/* Ptolemy II .plot dataset reader — declared in Compiler/runtime/ptolemyio.h.
+ * Stub: we don't support Ptolemy II input. */
+void* read_ptolemy_dataset(const char* fn, void* vars, int sz) {
+  (void) fn; (void) vars; (void) sz; return 0;
+}
+int read_ptolemy_dataset_size(const char* fn) {
+  (void) fn; return 0;
+}
+void* read_ptolemy_variables(const char* fn) {
+  (void) fn; return 0;
 }
 
 int System_getHasInnerOuterDefinitions(void) { return 0; }
@@ -240,6 +438,13 @@ int SystemImpl__directoryExists(const char* p) {
 }
 
 int SystemImpl__regularFileExists(const char* p) {
+  struct stat sb;
+  return (stat(p, &sb) == 0) && S_ISREG(sb.st_mode);
+}
+
+int SystemImpl__regularFileReadable(const char* p) {
+  /* MEMFS doesn't honour real permission bits, so a stat + S_ISREG is the
+   * useful gate here. OMC calls this before loading any .mo file. */
   struct stat sb;
   return (stat(p, &sb) == 0) && S_ISREG(sb.st_mode);
 }

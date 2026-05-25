@@ -17,7 +17,18 @@ cd "$(dirname "$0")/.."
 
 OMC_ROOT="${OMC_ROOT:-/tmp/OpenModelica}"
 THIRDPARTY="${THIRDPARTY:-/tmp/OMCompiler-3rdParty}"
-BOOT_C="$OMC_ROOT/OMCompiler/Compiler/boot/bootstrap-sources/build"
+# OMBootstrapping has the FULL compiler's pre-generated C (894 files,
+# non-stubbed Backend + SimCode + CodegenC). It's a separate git repo
+# at github.com/OpenModelica/OMBootstrapping, normally a submodule of
+# OpenModelica.git at Compiler/boot/bomc/.
+OMBOOTSTRAPPING="${OMBOOTSTRAPPING:-/tmp/OMBootstrapping}"
+if [ -d "$OMBOOTSTRAPPING/bootstrap-sources/build" ]; then
+  BOOT_C="$OMBOOTSTRAPPING/bootstrap-sources/build"
+  echo "[build] using OMBootstrapping (full compiler, $(ls "$BOOT_C"/*.c | wc -l) sources)"
+else
+  BOOT_C="$OMC_ROOT/OMCompiler/Compiler/boot/bootstrap-sources/build"
+  echo "[build] WARN: OMBootstrapping not found; falling back to bootstrap variant (stubbed backend)"
+fi
 RUNTIME="$OMC_ROOT/OMCompiler/Compiler/runtime"
 SIMRT_H="$OMC_ROOT/OMCompiler/SimulationRuntime/c"
 PARSER_DIR="$OMC_ROOT/OMCompiler/Parser"
@@ -56,8 +67,6 @@ mkdir -p build/simrt/objs
 SIM_DROP=(
   omc_mmap.c            # mmap() not in emscripten
   parallel_helper.c     # threads
-  read_matlab4.c        # .mat file reading; brings hdf5
-  write_matlab4.c       # ditto
 )
 should_skip() {
   local name="$1"
