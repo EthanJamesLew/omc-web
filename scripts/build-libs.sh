@@ -163,10 +163,24 @@ echo "  parser pass=$pass fail=$fail"
 [ $pass -gt 0 ] && emar rcs "$PARSER_OUT/libomcparser.a" "$PARSER_OUT"/objs/*.o
 
 # ---- libomcbootstrap.a (compile fresh with proper defs) ------------------
+# OMBootstrapping ships FakeBoostrappingExternals.c with empty no-op stubs
+# for every C extern OMC's MetaModelica calls into (BackendDAEEXT_matching,
+# Error_addSourceMessage, all of System_*, etc.). It exists so the bootstrap
+# stage-1 compiler can link without the real Compiler/runtime/. We want the
+# REAL implementations from libomcruntime.a, so dropping it from the wasm
+# build. Otherwise the fake no-ops take precedence over our runtime archive.
+BOOT_DROP=( FakeBoostrappingExternals.c )
+should_skip_boot() {
+  local name="$1"
+  for d in "${BOOT_DROP[@]}"; do [ "$name" = "$d" ] && return 0; done
+  return 1
+}
 echo "[build] libomcbootstrap.a"
 mkdir -p build/bootstrap/objs
 pass=0; fail=0; failed_boot=()
 for src in "$BOOT_C"/*.c; do
+  bn=$(basename "$src")
+  if should_skip_boot "$bn"; then continue; fi
   name=$(basename "$src" .c)
   if compile_one "$src" "build/bootstrap/objs/$name.o"; then
     pass=$((pass+1))
@@ -176,6 +190,8 @@ for src in "$BOOT_C"/*.c; do
 done
 echo "  pass=$pass fail=$fail"
 [ ${#failed_boot[@]} -gt 0 ] && printf "    failed: %s\n" "${failed_boot[@]}"
+# Drop FakeBoostrappingExternals.o if a previous build left it.
+rm -f build/bootstrap/objs/FakeBoostrappingExternals.o
 emar rcs build/libomcbootstrap.a build/bootstrap/objs/*.o
 
 # Compile the entry-point stub (provides main(), calls __omc_main).

@@ -21,6 +21,45 @@ modelica_metatype FFI_callFunction(int , modelica_metatype , modelica_metatype ,
   return mmc_mk_nil();
 }
 
+/* --- from FMIExt.h --- */
+int FMIImpl__initializeFMIImport(const char* , const char* , int , int , int , int , modelica_metatype* , modelica_metatype* , modelica_metatype* , modelica_metatype* , modelica_metatype* , modelica_metatype* , modelica_metatype*) {
+  return 0;
+}
+
+void FMIImpl__releaseFMIImport(modelica_metatype , modelica_metatype , modelica_metatype , const char*) {
+
+}
+
+/* --- from HpcOmBenchmarkExt.h --- */
+modelica_metatype HpcOmBenchmarkExt_readCalcTimesFromJson(const char*) {
+  return mmc_mk_nil();
+}
+
+modelica_metatype HpcOmBenchmarkExt_readCalcTimesFromXml(const char*) {
+  return mmc_mk_nil();
+}
+
+modelica_metatype HpcOmBenchmarkExt_requiredTimeForComm(void) {
+  return mmc_mk_nil();
+}
+
+modelica_metatype HpcOmBenchmarkExt_requiredTimeForOp(void) {
+  return mmc_mk_nil();
+}
+
+/* --- from HpcOmSchedulerExt.h --- */
+modelica_metatype HpcOmSchedulerExt_readScheduleFromGraphMl(const char*) {
+  return mmc_mk_nil();
+}
+
+modelica_metatype HpcOmSchedulerExt_scheduleMetis(modelica_metatype , modelica_metatype , modelica_metatype , modelica_metatype , int) {
+  return mmc_mk_nil();
+}
+
+modelica_metatype HpcOmSchedulerExt_schedulehMetis(modelica_metatype , modelica_metatype , modelica_metatype , modelica_metatype , int) {
+  return mmc_mk_nil();
+}
+
 /* --- from OMSimulatorExt.h --- */
 int OMSimulator_loadDLL(void) {
   return 0;
@@ -610,6 +649,15 @@ void System_writeFile(const char* , const char*) {
 
 int setenv(const char* , const char* , int) {
   return 0;
+}
+
+/* --- from TaskGraphResults.h --- */
+modelica_metatype TaskGraphResults_checkCodeGraph(const char* , const char*) {
+  return mmc_mk_nil();
+}
+
+modelica_metatype TaskGraphResults_checkTaskGraph(const char* , const char*) {
+  return mmc_mk_nil();
 }
 
 /* --- from Unzip.h --- */

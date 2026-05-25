@@ -188,10 +188,12 @@ def main() -> int:
     index = index_headers(HEADERS_DIR, only=SHIM_HEADERS)
     skip = hand_provided(HAND_FILE) | LIBC_NAMES
 
-    # Skip anything OMBootstrapping already defines in FakeBoostrappingExternals.c
-    # to avoid duplicate-symbol link errors.
-    fake_path = HEADERS_DIR / "FakeBoostrappingExternals.c"
-    skip |= _externals_in_file(fake_path)
+    # Note: OMBootstrapping ships FakeBoostrappingExternals.c with empty
+    # no-op stubs for the runtime externs. The wasm build now drops that
+    # file from libomcbootstrap.a (see scripts/build-libs.sh BOOT_DROP),
+    # because its empty BackendDAEEXT_matching etc. were beating the real
+    # implementations in libomcruntime.a. So we DON'T add it to the skip
+    # set anymore — gen-stubs needs to fill any symbol the archives don't.
 
     # Skip anything we already provide via OMC archives, the OMBootstrapping
     # fake-externals shim, or the antlr3/ryu/gc/parser deps. Otherwise the
