@@ -106,6 +106,8 @@ emcc "${OPT_FLAGS[@]}" \
   -s ENVIRONMENT=web,worker,node \
   -s MODULARIZE=0 \
   -s ERROR_ON_UNDEFINED_SYMBOLS=1 \
+  -s EMULATE_FUNCTION_POINTER_CASTS=1 \
+  -s BINARYEN_EXTRA_PASSES=--pass-arg=max-func-params@64 \
   -o web/omc.js
 
 # Drop the .data file too in case --preload-file is added later.
