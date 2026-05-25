@@ -75,14 +75,33 @@ end BouncingBall;</textarea>
   </footer>
 
   <script>
-    // The omc.js loader checks `typeof Module` at top level. Set it up
-    // BEFORE that script tag executes.
-    window.__omcweb = { out: [] };
+    // omc.js's first line is `var Module = typeof Module != "undefined"
+    // ? Module : {};` — so we have to install our Module object BEFORE
+    // that script tag runs. We also wire onRuntimeInitialized so app.js
+    // knows exactly when the wasm is callable.
+    window.__omcweb = { out: [], ready: false, err: null };
     window.Module = {
       noInitialRun: true,
       print:    (t) => window.__omcweb.out.push(t + "\n"),
       printErr: (t) => window.__omcweb.out.push("[err] " + t + "\n"),
+      onRuntimeInitialized: () => {
+        window.__omcweb.ready = true;
+        if (window.__omcweb.onReady) window.__omcweb.onReady();
+      },
+      onAbort: (w) => {
+        window.__omcweb.err = String(w);
+        const s = document.getElementById("status");
+        if (s) { s.textContent = "ABORT: " + window.__omcweb.err; s.className = "status error"; }
+      },
     };
+    // Surface omc.js load errors that would otherwise be silent.
+    window.addEventListener("error", (e) => {
+      const s = document.getElementById("status");
+      if (s && !window.__omcweb.ready) {
+        s.textContent = "ERROR: " + (e.message || e.error);
+        s.className = "status error";
+      }
+    });
   </script>
   <script src="omc.js"></script>
   <script src="app.js"></script>

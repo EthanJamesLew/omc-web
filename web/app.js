@@ -27,19 +27,22 @@ function attachStreamingPrint() {
   Module.printErr = (t) => show("[err] " + t);
 }
 
-(function waitForOMC() {
-  if (window.Module && window.Module.calledRun) {
-    omcReady = true;
-    attachStreamingPrint();
-    output.textContent = window.__omcweb.out.join("");
-    window.__omcweb.out = [];
-    setBusy(false, "omc.wasm ready");
-    $("build").disabled = false;
-    $("run").disabled = false;
-    return;
-  }
-  setTimeout(waitForOMC, 100);
-})();
+function onOMCReady() {
+  if (omcReady) return;
+  omcReady = true;
+  attachStreamingPrint();
+  output.textContent = window.__omcweb.out.join("");
+  window.__omcweb.out = [];
+  setBusy(false, "omc.wasm ready");
+  $("build").disabled = false;
+  $("run").disabled = false;
+}
+// onRuntimeInitialized may have already fired before this script loaded.
+if (window.__omcweb && window.__omcweb.ready) {
+  onOMCReady();
+} else if (window.__omcweb) {
+  window.__omcweb.onReady = onOMCReady;
+}
 
 // ---------------------- Build (Modelica → C) ----------------------
 
