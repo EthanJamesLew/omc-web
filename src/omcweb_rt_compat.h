@@ -12,32 +12,11 @@
 extern "C" {
 #endif
 
-/* Enum that lives outside the minimal block in upstream rtclock.h but
- * gets referenced by simulation_runtime.cpp regardless of mode. */
-enum omc_rt_clock_t {
-  OMC_CLOCK_REALTIME = 0,
-  OMC_CLOCK_CPUTIME  = 1,
-  OMC_CPU_CYCLES     = 2
-};
-
-/* Function bodies in omcweb_rt_compat.c. */
-double rt_accumulated(int ix);
-void   rt_init(int numTimer);
-void   rt_clear_total(int ix);
-double rt_total(int ix);
-double rt_max_accumulated(int ix);
-double rt_max_accumulated_resetMax(int ix);
-unsigned int rt_ncall(int ix);
-unsigned int rt_ncall_min(int ix);
-unsigned int rt_ncall_max(int ix);
-unsigned int rt_ncall_total(int ix);
-void rt_add_ncall(int ix, int n);
-void rt_measure_overhead(int ix);
-void rt_clock_overhead(void);
-
-/* Used by simulation_runtime.cpp; under minimal mode picking a clock
- * isn't meaningful — always pretend success. */
-static inline int rt_set_clock(enum omc_rt_clock_t clk) { (void) clk; return 0; }
+/* Under OMC_EMCC, upstream rtclock.h declares the enum and the full
+ * rtclock API itself; this header used to fill those gaps for
+ * OMC_MINIMAL_RUNTIME but is now empty for OMC_EMCC mode. Keeping the
+ * file as a no-op so the -include line in build-sim-runtime.sh doesn't
+ * need to track conditional inclusion. */
 
 #ifdef __cplusplus
 }

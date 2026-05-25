@@ -5,7 +5,7 @@
 # Mode: OMC_MINIMAL_RUNTIME (no sundials/IDA/KLU/optimization/CSV-IO) plus
 # OMC_FMI_RUNTIME=0 (keep Euler/RK4 solver_main + events). Enough for a
 # trivial ODE bouncing ball; full-featured models need sundials added back.
-set -uo pipefail
+set -o pipefail
 
 cd "$(dirname "$0")/.."
 . emsdk/emsdk_env.sh > /dev/null 2>&1
@@ -30,13 +30,27 @@ INCS=(
   -I "$SIMRT_H/dataReconciliation"
   -I "$SIMRT_H/linearization"
   -I "$THIRDPARTY/gc/include"
-  -I "$THIRDPARTY/sundials-5.4.0/include"
+  # Real sundials wasm build (scripts/build-sundials-wasm.sh). Headers
+  # land at install/include/sundials/{cvode,ida,kinsol,nvector,sundials,
+  # sunlinsol,sunmatrix,sunnonlinsol}/*.h — the inner "sundials/" subdir
+  # holds sundials_config.h, so -I that subdir.
+  -I "$(pwd)/build/deps/sundials/install/include/sundials"
+  # SuiteSparse/KLU built by scripts/build-suitesparse-wasm.sh.
+  # sunlinsol_klu.h includes "klu.h"; this -I makes that resolve.
+  -I "$(pwd)/build/deps/suitesparse/install/include"
+  -I "$(pwd)/build/deps/suitesparse/install/include/suitesparse"
+  # LIS (Library of Iterative Solvers) for the LIS-backed linear solver
+  # path. Built by scripts/build-lis-wasm.sh.
+  -I "$(pwd)/build/deps/lis/install/include"
   -I "$THIRDPARTY/cJSON"
 )
 DEFS=(
-  -DOMC_MINIMAL_RUNTIME=1
+  # OMC_EMCC is what upstream's Makefile.in line 82 uses for its own
+  # emscripten build: gates out real-time-sync, embedded server, Corba
+  # hooks, and a handful of network/process paths the wasm can't use.
+  -DOMC_EMCC
+  -DNO_INTERACTIVE_DEPENDENCY
   -DOM_HAVE_PTHREADS=0
-  -DUSE_OMC_MINIMAL_RUNTIME=1
   -DADD_METARECORD_DEFINITIONS=
 )
 CFLAGS=(-O2 -w -fno-strict-aliasing)
@@ -94,7 +108,16 @@ compile_one() {
   fi
   # -include omcweb_rt_compat.h fills minimal-mode gaps (enum omc_rt_clock_t,
   # rt_accumulated, rt_set_clock). Cheap to apply to all TUs.
-  emcc -c "${CFLAGS[@]}" "${INCS[@]}" "${DEFS[@]}" \
+  local lang_flags=()
+  case "$src" in
+    *.cpp)
+      # simulation_runtime.cpp includes meta/meta_modelica.h which implicitly
+      # converts void* to base_array_t* — fine in C, errors under C++ strict
+      # conversion. Compile as C++ with permissive conversion.
+      lang_flags=(-fpermissive)
+      ;;
+  esac
+  emcc -c "${CFLAGS[@]}" "${INCS[@]}" "${DEFS[@]}" "${lang_flags[@]}" \
     -include "$(pwd)/src/omcweb_rt_compat.h" \
     "$src" -o "$obj" 2>>"$LOG"
 }
