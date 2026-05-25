@@ -33,30 +33,5 @@
  *
  */
 
-/*PDEModelica extension built-ins*/
-
-record DomainLineSegment1D "Record representing 1-dimensional domain where a partial differential equation hold."
-  record Region
-  end Region;
-  parameter Real x0(unit="m")=0 "x value at left boundary";
-  parameter Real L(unit="m")=1 "length of the domain";
-  constant Integer N(unit="")=10 "number of grid nodes";
-  parameter Real dx = L / (N-1) "grid space step";
-  parameter Real[N] x(each unit="m") = array(x0 + i*dx for i in 0:N-1) "space coordinate";
-  Region left, right, interior "regions representing boundaries and the interior";
-end DomainLineSegment1D;
-
-function pder "Partial space derivative of the input expression in the first argument with respect to second argument"
-  input Real u(unit="'p");
-  input Real x(unit="'q");
-  output Real du(unit="'p/'q");
-external "builtin";
-annotation(Documentation(info="<html>
-  See <a href=\"???\">pder()</a>
-</html>"));
-end pder;
-
-function extrapolateField "Extrapolates field in the boundary"
-  output Real u;
-external "builtin";
-end extrapolateField;
+package GraphicalAnnotationsProgram____
+end     GraphicalAnnotationsProgram____;
