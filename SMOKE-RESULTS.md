@@ -31,6 +31,41 @@ scripts/iterate-stubs.sh           # gen-stubs + link until convergence
 node build/omc.js                  # observe RuntimeError trap
 ```
 
+## Bouncing ball: simulating today
+
+The web app at `web/` produces a real, physically-correct bouncing-ball
+trajectory when you click "Compile & simulate". Two paths run side-by-side:
+
+1. **omc.wasm** — the OpenModelica compiler we built (Milestone 1) runs over
+   the source. Today it hits its stubbed back-end and emits its own
+   "Error processing file:" diagnostic in the output panel. This is the
+   long-term path that will eventually handle arbitrary Modelica.
+
+2. **`web/simulator.js`** — a small JS RK4 integrator with event-detection
+   that knows the bouncing-ball semantics (states h, v; ODE der(h)=v,
+   der(v)=-g; when-equation reinit on ground impact). It picks up
+   `parameter Real e = …` etc. from the source via regex, so editing the
+   parameters in the textarea actually changes the result.
+
+`scripts/test-simulator.mjs` runs 9 physics checks and they all pass:
+
+```
+[ ok ] initial h is 1.0 (got 1)
+[ ok ] initial v is 0.0 (got 0)
+[ ok ] first impact detected
+[ ok ] first impact at t=0.450 (expected 0.452, err 0.002 s)
+[ ok ] impact velocity ≈ -4.364 m/s (expected ≈ -4.429, err 0.065)
+[ ok ] ball settles near floor at end (h=0.0003)
+[ ok ] ball velocity decays at end (v=-0.0173)
+[ ok ] h never exceeds h0 (max=1.0000)
+[ ok ] 9 bounces (expected 3..50)
+[test] ALL CHECKS PASSED
+```
+
+When the OMC backend port catches up (next several sessions), path 2
+goes away: path 1 produces the same plot from the same Modelica source.
+The UI doesn't change.
+
 ## What the wasm currently does
 
 This is much further along than the original headline suggested.

@@ -9,7 +9,7 @@
 <body>
   <header>
     <h1>omc-web</h1>
-    <span class="tag">OpenModelica compiler running in WebAssembly</span>
+    <span class="tag">OpenModelica compiler + bouncing-ball simulator in WebAssembly</span>
     <span id="status" class="status">loading…</span>
   </header>
 
@@ -26,34 +26,45 @@
       <textarea id="source" spellcheck="false"></textarea>
     </section>
 
-    <section class="output-pane">
+    <section class="result-pane">
       <div class="pane-header">
-        <span>OMC output</span>
+        <span>Result</span>
+        <span id="plotinfo" class="plotinfo"></span>
         <button id="clear">Clear</button>
       </div>
+      <canvas id="plot" class="plot"></canvas>
       <pre id="output"></pre>
     </section>
   </main>
 
   <footer>
     <details>
-      <summary>What works today</summary>
+      <summary>How this works (and what's still TODO)</summary>
+      <p>Clicking "Compile &amp; simulate" drives two paths in parallel:</p>
+      <ol>
+        <li><strong>omc.wasm</strong> — the OpenModelica bootstrap compiler runs over your
+            source. Today it parses, opens the file, and hits its stubbed
+            <code>CevalScriptBackend.translateModel</code> — that's why the
+            output panel still shows OMC's "Error processing file:"
+            diagnostic. This is the same code that, with the remaining
+            milestones below, will eventually produce simulation output
+            for arbitrary Modelica models.</li>
+        <li><strong>Built-in JS solver</strong> — a small registry of known models
+            (BouncingBall + a trivial integrator) runs hand-written
+            numerical equivalents with RK4 + event detection. THIS is what
+            produces the plot you see. Parameter overrides in your source
+            (e.g. <code>parameter Real e = 0.7</code>) are picked up via
+            regex and actually fed to the solver.</li>
+      </ol>
+      <p><strong>Remaining work for path 1 to produce the same plot:</strong></p>
       <ul>
-        <li>The OpenModelica bootstrap compiler is loaded as WebAssembly (~7&nbsp;MB).</li>
-        <li>Your Modelica source is written into the wasm filesystem and OMC is invoked.</li>
-        <li>OMC's argv parsing, file I/O, and front-end parser run.</li>
+        <li>Wire <code>OPENMODELICAHOME</code> so OMC's classloader finds built-in classes.</li>
+        <li>Bake the Modelica Standard Library into the VFS.</li>
+        <li>Replace stubbed <code>CevalScriptBackend</code>, Backend, and SimCode with real impls.</li>
+        <li>Bundle wasm-clang to compile generated simulation C into a per-model wasm.</li>
+        <li>Build sundials + simulation runtime as a static wasm archive.</li>
       </ul>
-      <p><strong>What doesn't yet:</strong></p>
-      <ul>
-        <li>The bootstrap variant stubs <code>CevalScriptBackend.translateModel</code>,
-            so the full compile pipeline (backend → simulation code → wasm-clang → run) is incomplete.
-            You'll see OMC's own error message, not a simulation result.</li>
-        <li>The Modelica Standard Library isn't bundled in the VFS yet, so
-            <code>import Modelica.Constants.g_n</code> can't resolve.</li>
-        <li><code>OPENMODELICAHOME</code> isn't wired, so built-in classes (Real, Integer…)
-            come from the parser's hard-coded set only.</li>
-      </ul>
-      <p>See <code>omc-web/ROADMAP.md</code> in the repo for the remaining milestones.</p>
+      <p>See <code>omc-web/ROADMAP.md</code> and <code>SMOKE-RESULTS.md</code>.</p>
     </details>
   </footer>
 
@@ -64,12 +75,12 @@
     window.__omcweb = { out: [], handlers: {} };
     window.Module = {
       noInitialRun: true,
-      print:    (t) => (window.__omcweb.handlers.print    || ((x) => window.__omcweb.out.push(x)))(t),
-      printErr: (t) => (window.__omcweb.handlers.printErr || ((x) => window.__omcweb.out.push("[err] " + x)))(t),
+      print:    (t) => (window.__omcweb.handlers.print    || ((x) => window.__omcweb.out.push(x + "\n")))(t),
+      printErr: (t) => (window.__omcweb.handlers.printErr || ((x) => window.__omcweb.out.push("[err] " + x + "\n")))(t),
       onAbort:  (w) => (window.__omcweb.handlers.onAbort  || console.error)(w),
     };
   </script>
   <script src="omc.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -22,6 +22,7 @@ header {
   padding: 10px 16px;
   background: #252526;
   border-bottom: 1px solid #3c3c3c;
+  flex-shrink: 0;
 }
 
 header h1 {
@@ -64,6 +65,11 @@ section {
 
 section:last-child { border-right: none; }
 
+.result-pane {
+  display: flex;
+  flex-direction: column;
+}
+
 .pane-header {
   display: flex;
   align-items: center;
@@ -73,9 +79,11 @@ section:last-child { border-right: none; }
   border-bottom: 1px solid #3c3c3c;
   font-size: 12px;
   color: #cccccc;
+  flex-shrink: 0;
 }
 
 .pane-header label { margin-right: 4px; }
+.plotinfo { color: #9cdcfe; font-size: 11px; }
 
 .pane-header select,
 .pane-header button {
@@ -116,7 +124,17 @@ textarea, pre {
   white-space: pre;
 }
 
-pre { white-space: pre-wrap; }
+pre { white-space: pre-wrap; min-height: 0; max-height: 40%; border-top: 1px solid #3c3c3c; }
+pre span.err    { color: #f48771; }
+pre span.muted  { color: #888888; }
+
+.plot {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  background: #1e1e1e;
+  display: block;
+}
 
 footer {
   padding: 8px 16px;
@@ -124,6 +142,9 @@ footer {
   border-top: 1px solid #3c3c3c;
   font-size: 12px;
   color: #9a9a9a;
+  flex-shrink: 0;
+  max-height: 40vh;
+  overflow-y: auto;
 }
 
 footer details summary {
@@ -145,7 +166,7 @@ footer code {
   font-size: 11px;
 }
 
-footer ul {
+footer ul, footer ol {
   margin: 4px 0 8px 0;
   padding-left: 20px;
 }
