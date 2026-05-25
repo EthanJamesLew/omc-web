@@ -61,8 +61,12 @@ int  gbode_allocateData(void *si, void *data, void *threadData) {
   (void) si; (void) data; (void) threadData; return 0;
 }
 int  gbode_freeData(void *si) { (void) si; return 0; }
-int  omc_real_time_sync_init(void *data, void *threadData) {
-  (void) data; (void) threadData; return 0;
+/* Note: solver_main calls `omc_real_time_sync_init(threadData, data)` — */
+/* threadData first. real_time_sync.h declares it as
+ *   void omc_real_time_sync_init(threadData_t *td, DATA *data)
+ * Stub signature must match exactly. */
+void omc_real_time_sync_init(void *threadData, void *data) {
+  (void) threadData; (void) data;
 }
 /* solver_main.c calls omc_real_time_sync_update directly. No-op (wasm
  * has no real-time concept). */
