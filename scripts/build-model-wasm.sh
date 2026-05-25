@@ -45,7 +45,7 @@ DEFS=(
   -DOMC_NDELAY_EXPRESSIONS=0
   -DOMC_NVAR_STRING=0
 )
-CFLAGS=(-Os -w -fno-strict-aliasing)
+CFLAGS=(-O0 -g -w -fno-strict-aliasing)
 NPROC="${NPROC:-$(sysctl -n hw.logicalcpu 2>/dev/null || nproc)}"
 
 OBJDIR="$MODEL_DIR/objs"
@@ -88,7 +88,7 @@ if [ "${#OBJS[@]}" -eq 0 ]; then
 fi
 
 echo "[model] link $OUT (${#OBJS[@]} objs)"
-emcc -Os \
+emcc -O0 -g --profiling-funcs \
   "${OBJS[@]}" \
   build/omcweb_gc_stub.o \
   build/libomc_sim.a \
@@ -122,12 +122,15 @@ emcc -Os \
   -s INITIAL_MEMORY=64MB \
   -s STACK_SIZE=8MB \
   -s SUPPORT_LONGJMP=1 \
-  -s ASSERTIONS=1 \
+  -s ASSERTIONS=2 \
+  -s SAFE_HEAP=1 \
   -s FORCE_FILESYSTEM=1 \
   -s EXPORTED_RUNTIME_METHODS=callMain,FS,UTF8ToString \
   -s ENVIRONMENT=web,worker,node \
   -s INVOKE_RUN=0 \
   -s STANDALONE_WASM=0 \
+  -s EMULATE_FUNCTION_POINTER_CASTS=1 \
+  -s BINARYEN_EXTRA_PASSES=--pass-arg=max-func-params@64 \
   -s ERROR_ON_UNDEFINED_SYMBOLS=1 \
   -o "$OUT" 2>&1 | tail -30
 

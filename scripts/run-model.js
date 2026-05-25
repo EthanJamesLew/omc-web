@@ -22,18 +22,36 @@ const tick = setInterval(() => {
   if (Module.calledRun) {
     clearInterval(tick);
 
-    // Stage init.xml and info.json which CodegenC emitted alongside the C.
-    for (const f of [`${model}_init.xml`, `${model}_info.json`]) {
-      if (fs.existsSync(f)) {
-        Module.FS.writeFile("/" + f, fs.readFileSync(f));
-      }
+    // Stage every support file CodegenC emitted (init.xml, info.json,
+    // sparsity-pattern *_Jac*.bin, etc) — the runtime reads them by
+    // relative path.
+    for (const f of fs.readdirSync(".")) {
+      if (!f.startsWith(model)) continue;
+      if (f.endsWith(".c") || f.endsWith(".h") || f.endsWith(".o")) continue;
+      if (f.endsWith(".wasm") || f.endsWith(".js")) continue;
+      try { Module.FS.writeFile("/" + f, fs.readFileSync(f)); } catch(e) {}
     }
 
-    const args = [`-override=stepSize=${stepSize},stopTime=${stopTime}`];
-    console.log(`=== node BouncingBall.js ${args.join(" ")}`);
+    // stopTime/stepSize are NOT model-variable overrides; they live in
+    // the <DefaultExperiment> section of init.xml. Patch the staged
+    // init.xml to set them.
+    const initXmlPath = `${model}_init.xml`;
+    if (fs.existsSync(initXmlPath)) {
+      let xml = fs.readFileSync(initXmlPath, "utf8");
+      xml = xml.replace(/(<DefaultExperiment[^>]*\bstartTime\s*=\s*")[^"]*"/, `$1${0}"`);
+      xml = xml.replace(/(<DefaultExperiment[^>]*\bstopTime\s*=\s*")[^"]*"/,  `$1${stopTime}"`);
+      xml = xml.replace(/(<DefaultExperiment[^>]*\bstepSize\s*=\s*")[^"]*"/,  `$1${stepSize}"`);
+      Module.FS.writeFile("/" + initXmlPath, xml);
+    }
+
+    const args = ["-s=euler", "-lv=LOG_SOLVER,LOG_SIMULATION,LOG_STDOUT"];
+    console.log(`=== node ${model}.js ${args.join(" ")}`);
     let ret;
     try { ret = Module.callMain(args); }
-    catch (e) { console.error("THROW:", e.name, "-", e.message); }
+    catch (e) {
+      console.error("THROW:", e.name, "-", e.message);
+      if (e.stack) console.error(e.stack.split("\n").slice(0,20).join("\n"));
+    }
     console.log("=== ret=" + ret);
 
     console.log("=== MEMFS files in / matching " + model + ":");

@@ -7,13 +7,35 @@
 #include <stddef.h>
 #include <stdio.h>
 
-void* (*embedded_server_init)(void *data, double tout, double step,
-                              const char *argv_0,
-                              void (*omc_real_time_sync_update)(void*, double),
-                              int port) = NULL;
-void  (*wait_for_step)(void *handle) = NULL;
-void  (*embedded_server_deinit)(void *handle) = NULL;
-int   (*embedded_server_update)(void *handle, double tout, int *terminate) = NULL;
+/* These are function-POINTER globals declared in embedded_server.h.
+ * solver_main.c calls them unconditionally (e.g.
+ *   data->embeddedServerState = embedded_server_init(...);
+ *   wait_for_step(data->embeddedServerState);
+ *   embedded_server_deinit(...);
+ * ) without first checking the pointer. We can't leave them NULL —
+ * that'd trap with "unreachable" under wasm strict indirect-call. So
+ * point them at real no-op functions instead. */
+static void* es_init_noop(void *data, double tout, double step,
+                          const char *argv_0,
+                          void (*omc_real_time_sync_update)(void*, double),
+                          int port) {
+  (void) data; (void) tout; (void) step; (void) argv_0;
+  (void) omc_real_time_sync_update; (void) port;
+  return NULL;
+}
+static void  es_wait_noop  (void *handle) { (void) handle; }
+static void  es_deinit_noop(void *handle) { (void) handle; }
+static int   es_update_noop(void *handle, double tout, int *terminate) {
+  (void) handle; (void) tout;
+  if (terminate) *terminate = 0;
+  return 0;
+}
+
+void* (*embedded_server_init)(void *, double, double, const char *,
+                              void (*)(void*, double), int) = es_init_noop;
+void  (*wait_for_step)(void *) = es_wait_noop;
+void  (*embedded_server_deinit)(void *) = es_deinit_noop;
+int   (*embedded_server_update)(void *, double, int *) = es_update_noop;
 
 void* embedded_server_load_functions(const char *name) { (void) name; return NULL; }
 void  embedded_server_unload_functions(void *dllHandle) { (void) dllHandle; }
