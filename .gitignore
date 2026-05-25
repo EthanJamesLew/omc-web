@@ -1,8 +1,15 @@
 build/
 upstream/
 emsdk/
-*.wasm
 *.o
 *.a
 *.bc
 *.js.map
+
+# Don't ignore the built wasm: it lives in web/ so the static site is
+# self-contained when checked out. The build script regenerates it.
+!web/omc.wasm
+
+# The repo-root .gitignore ignores `*.mo` (for gettext translations).
+# Our `.mo` files are Modelica source — track them.
+!**/*.mo

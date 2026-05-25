@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>omc-web — OpenModelica in the browser</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>omc-web</h1>
+    <span class="tag">OpenModelica compiler running in WebAssembly</span>
+    <span id="status" class="status">loading…</span>
+  </header>
+
+  <main>
+    <section class="editor-pane">
+      <div class="pane-header">
+        <label for="example">Example</label>
+        <select id="example">
+          <option value="BouncingBall">Bouncing ball (uses MSL)</option>
+          <option value="Trivial">Trivial empty model</option>
+        </select>
+        <button id="compile" disabled>Compile &amp; simulate</button>
+      </div>
+      <textarea id="source" spellcheck="false"></textarea>
+    </section>
+
+    <section class="output-pane">
+      <div class="pane-header">
+        <span>OMC output</span>
+        <button id="clear">Clear</button>
+      </div>
+      <pre id="output"></pre>
+    </section>
+  </main>
+
+  <footer>
+    <details>
+      <summary>What works today</summary>
+      <ul>
+        <li>The OpenModelica bootstrap compiler is loaded as WebAssembly (~7&nbsp;MB).</li>
+        <li>Your Modelica source is written into the wasm filesystem and OMC is invoked.</li>
+        <li>OMC's argv parsing, file I/O, and front-end parser run.</li>
+      </ul>
+      <p><strong>What doesn't yet:</strong></p>
+      <ul>
+        <li>The bootstrap variant stubs <code>CevalScriptBackend.translateModel</code>,
+            so the full compile pipeline (backend → simulation code → wasm-clang → run) is incomplete.
+            You'll see OMC's own error message, not a simulation result.</li>
+        <li>The Modelica Standard Library isn't bundled in the VFS yet, so
+            <code>import Modelica.Constants.g_n</code> can't resolve.</li>
+        <li><code>OPENMODELICAHOME</code> isn't wired, so built-in classes (Real, Integer…)
+            come from the parser's hard-coded set only.</li>
+      </ul>
+      <p>See <code>omc-web/ROADMAP.md</code> in the repo for the remaining milestones.</p>
+    </details>
+  </footer>
+
+  <script>
+    // Must set up Module BEFORE omc.js loads — emscripten's `var Module = ...`
+    // captures it once at top-level, so handlers set later won't be honoured.
+    // The real handlers in app.js install themselves via these bridges.
+    window.__omcweb = { out: [], handlers: {} };
+    window.Module = {
+      noInitialRun: true,
+      print:    (t) => (window.__omcweb.handlers.print    || ((x) => window.__omcweb.out.push(x)))(t),
+      printErr: (t) => (window.__omcweb.handlers.printErr || ((x) => window.__omcweb.out.push("[err] " + x)))(t),
+      onAbort:  (w) => (window.__omcweb.handlers.onAbort  || console.error)(w),
+    };
+  </script>
+  <script src="omc.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

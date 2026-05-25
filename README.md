@@ -71,15 +71,25 @@ LAPACK), `open62541`, `moo`, `Cdaskr`, `CMinpack`, `flex-2.5.35`, `zlib`,
 
 ## Build
 
-Not working yet. Eventual:
-
 ```bash
-scripts/fetch-sources.sh       # clone OpenModelica + 3rdParty at pinned shas
-scripts/install-emsdk.sh       # install emscripten toolchain
-make omc.wasm                  # compile OMC compiler to wasm
-make simruntime.wasm           # compile simulation runtime to wasm
-make msl.vfs                   # pack MSL .mo sources into a VFS bundle
+scripts/install-emsdk.sh         # one-time: install emsdk 3.1.74
+scripts/fetch-sources.sh         # one-time: clone OpenModelica + 3rdParty
+scripts/prepare-tree.sh          # drop our omc_config + wire 3rdParty symlinks
+scripts/build-libs.sh            # compile all static archives
+scripts/iterate-stubs.sh         # link → gen-stubs → re-link until converged
+scripts/build-web.sh             # produce web/omc.{js,wasm} for the browser
+scripts/serve.sh 8080            # local dev server -> http://localhost:8080
+node scripts/smoke-web.js        # headless sanity check
 ```
+
+## Web app
+
+`web/` is a minimal page that loads `omc.wasm`, takes Modelica source from a
+textarea, writes it into the wasm's MEMFS, and invokes the OMC compiler.
+The bundled example uses `import Modelica.Constants.g_n` to demonstrate
+MSL coupling. As of today the compiler hits its stubbed back-end before
+producing a simulation; the UI surfaces OMC's actual diagnostics so the
+remaining porting work is visible. See `SMOKE-RESULTS.md` for the state.
 
 ## Layout
 
@@ -87,11 +97,16 @@ make msl.vfs                   # pack MSL .mo sources into a VFS bundle
 omc-web/
 ├── README.md          (this file)
 ├── ROADMAP.md         milestones and known blockers
-├── Makefile           orchestration
-├── scripts/
-│   ├── fetch-sources.sh
-│   └── install-emsdk.sh
-├── src/               our own glue / shim code
-├── patches/           patches applied to OpenModelica to make it emcc-friendly
-└── build/             output (gitignored)
+├── SMOKE-RESULTS.md   what the wasm currently does + how to repro
+├── scripts/           build / link / smoke-test scripts
+├── src/               our own headers and runtime stubs
+├── patches/           patches applied to OpenModelica
+├── web/               the browser app
+│   ├── index.html
+│   ├── app.js
+│   ├── style.css
+│   ├── examples/
+│   │   └── BouncingBall.mo
+│   └── omc.{js,wasm}  (built by scripts/build-web.sh)
+└── build/             intermediate artefacts (gitignored)
 ```
