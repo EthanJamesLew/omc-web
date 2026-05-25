@@ -1,0 +1,20 @@
+{"format":"Transformational debugger info","version":1,
+"info":{"name":"BouncingBall","description":""},
+"variables":{
+"h":{"comment":"height","kind":"state","type":"Real","unit":"","displayUnit":"","source":{"info":{"file":"/BB.mo","lineStart":3,"lineEnd":3,"colStart":3,"colEnd":41}},"index":0},
+"v":{"comment":"velocity","kind":"state","type":"Real","unit":"","displayUnit":"","source":{"info":{"file":"/BB.mo","lineStart":4,"lineEnd":4,"colStart":3,"colEnd":43}},"index":1},
+"der(h)":{"comment":"der(height)","kind":"derivative","type":"Real","unit":"","displayUnit":"","source":{"info":{"file":"/BB.mo","lineStart":3,"lineEnd":3,"colStart":3,"colEnd":41}},"index":2},
+"der(v)":{"comment":"der(velocity)","kind":"derivative","type":"Real","unit":"","displayUnit":"","source":{"info":{"file":"/BB.mo","lineStart":4,"lineEnd":4,"colStart":3,"colEnd":43}},"index":3},
+"g":{"comment":"gravity","kind":"parameter","type":"Real","unit":"","displayUnit":"","source":{"info":{"file":"/BB.mo","lineStart":2,"lineEnd":2,"colStart":3,"colEnd":36}},"index":0}
+},
+"equations":[{"eqIndex":0,"tag":"dummy"},
+{"eqIndex":1,"section":"initial","tag":"assign","defines":["v"],"uses":["$START.v"],"equation":["$START.v"],"source":{"info":{"file":"","lineStart":0,"lineEnd":0,"colStart":0,"colEnd":0}}},
+{"eqIndex":2,"tag":"alias","equation":[6],"section":"initial"},
+{"eqIndex":3,"tag":"alias","equation":[5],"section":"initial"},
+{"eqIndex":4,"section":"initial","tag":"assign","defines":["h"],"uses":["$START.h"],"equation":["$START.h"],"source":{"info":{"file":"","lineStart":0,"lineEnd":0,"colStart":0,"colEnd":0}}},
+{"eqIndex":5,"section":"regular","tag":"assign","defines":["der(v)"],"uses":["g"],"equation":["-g"],"source":{"info":{"file":"/BB.mo","lineStart":7,"lineEnd":7,"colStart":3,"colEnd":14}}},
+{"eqIndex":6,"section":"regular","tag":"assign","defines":["der(h)"],"uses":["v"],"equation":["v"],"source":{"info":{"file":"/BB.mo","lineStart":6,"lineEnd":6,"colStart":3,"colEnd":13}}}
+],
+"functions":[
+]
+}

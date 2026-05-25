@@ -100,12 +100,30 @@ section:last-child { border-right: none; }
 .pane-header button:hover:not(:disabled) { background: #4a4a4a; }
 .pane-header button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.pane-header #compile {
-  margin-left: auto;
+.pane-header #build,
+.pane-header #run {
   background: #0e639c;
   border-color: #1177bb;
 }
-.pane-header #compile:hover:not(:disabled) { background: #1177bb; }
+.pane-header #build:hover:not(:disabled),
+.pane-header #run:hover:not(:disabled) { background: #1177bb; }
+.pane-header .step { margin-left: 12px; color: #9cdcfe; font-size: 11px; }
+.pane-header .step input {
+  width: 56px;
+  margin-left: 4px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border: 1px solid #5a5a5a;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 12px;
+}
+
+#trace { width: 100%; border-collapse: collapse; font-size: 12px; }
+#trace th, #trace td { padding: 2px 8px; text-align: right; border-bottom: 1px solid #2d2d30; }
+#trace th { background: #2d2d30; color: #9cdcfe; font-weight: 600; }
+#trace td { font-family: "SF Mono", Monaco, Menlo, Consolas, monospace; color: #d4d4d4; }
 
 textarea, pre {
   flex: 1;
