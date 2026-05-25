@@ -14,7 +14,10 @@
 #define HAVE_CTYPE_H 1
 #define HAVE_DLFCN_H 1
 #define HAVE_INTTYPES_H 1
+/* macOS has no <malloc.h>; emscripten/glibc/musl do. */
+#if !defined(__APPLE__)
 #define HAVE_MALLOC_H 1
+#endif
 #define HAVE_MEMORY_H 1
 #define HAVE_STDARG_H 1
 #define HAVE_STDINT_H 1

@@ -598,3 +598,31 @@ modelica_metatype System_launchParallelTasks(threadData_t* td, int numThreads,
    * just slower. */
   return omc_List_map(td, inData, func);
 }
+
+/* ---- parser-side error reporting ---------------------------------------
+ * The parser (`Modelica.g` actions, both Lexer and Parser) calls
+ * `c_add_source_message` and `c_add_message` directly. These live in
+ * Compiler/runtime/errorext.cpp upstream, which we don't compile. Print
+ * to stderr so we at least see syntax errors during early bring-up. */
+typedef enum { ErrorType_syntax_, ErrorType_grammar_, ErrorType_translation_,
+               ErrorType_symbolic_, ErrorType_runtime_, ErrorType_scripting_ } ErrorType_e;
+typedef enum { ErrorLevel_internal_, ErrorLevel_error_, ErrorLevel_warning_,
+               ErrorLevel_notification_ } ErrorLevel_e;
+
+void c_add_message(threadData_t *td, int errorID, int type, int severity,
+                   const char* message, const char** ctokens, int nTokens) {
+  (void) td; (void) errorID; (void) type;
+  fprintf(stderr, "[omc] %s: %s\n",
+          severity == ErrorLevel_error_ ? "Error" : "Warning", message ? message : "");
+}
+
+void c_add_source_message(threadData_t *td, int errorID, int type, int severity,
+                          const char* message, const char** ctokens, int nTokens,
+                          int startLine, int startCol, int endLine, int endCol,
+                          int isReadOnly, const char* filename) {
+  (void) td; (void) errorID; (void) type; (void) ctokens; (void) nTokens;
+  (void) endLine; (void) endCol; (void) isReadOnly;
+  fprintf(stderr, "[omc] %s: %s:%d:%d: %s\n",
+          severity == ErrorLevel_error_ ? "Error" : "Warning",
+          filename ? filename : "?", startLine, startCol, message ? message : "");
+}

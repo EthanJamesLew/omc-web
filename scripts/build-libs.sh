@@ -146,7 +146,10 @@ if ! ls "$PARSER_OUT"/ModelicaParser.c "$PARSER_OUT"/Modelica_3_Lexer.c "$PARSER
 fi
 pass=0; fail=0
 # Generated lexers use #include <Sibling.h>; -I the parser-gen dir.
-PARSER_INCS=("${INCS[@]}" -I "$PARSER_OUT")
+# Parser must see OMC's Compiler/runtime/errorext.h (defines
+# c_add_source_message, ErrorType_syntax) before OMBootstrapping's
+# generated errorext.h, which only has MetaModelica-binding stubs.
+PARSER_INCS=(-I "$RUNTIME" "${INCS[@]}" -I "$PARSER_OUT")
 for src in "$PARSER_OUT"/*.c "$PARSER_DIR/Parser_omc.c"; do
   name=$(basename "$src" .c)
   if emcc -c -O2 -w "${PARSER_INCS[@]}" "${DEFS[@]}" "$src" -o "$PARSER_OUT/objs/$name.o" 2>>"$LOG"; then
