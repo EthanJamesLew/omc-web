@@ -406,28 +406,28 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
   background: var(--panel);
   border-bottom: 1px solid var(--hair);
 }
+/* Paired-row grid: each logical line gets its own row in a 2-column grid
+   (gutter cell + code cell). When a code line wraps, only the code cell
+   grows vertically — the line number stays anchored at the top. The
+   textarea overlays JUST the code column with identical font + wrap
+   rules so the visible caret tracks the highlighted text. */
 .mp-code-body {
   flex: 1 1 auto; min-height: 0;
-  display: flex;
+  position: relative;
   overflow: auto;
   background: var(--panel);
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 12.5px;
   line-height: 1.65;
 }
-.mp-code-gutter {
-  flex: none;
-  width: 44px;
+.mp-code-grid {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-auto-rows: min-content;
+  align-content: start;
   padding: 14px 0 24px;
-  border-right: 1px solid var(--hair2);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  user-select: none;
-  background: var(--panel);
-  position: sticky;
-  left: 0;
-  z-index: 1;
+  min-height: 100%;
+  box-sizing: border-box;
 }
 .mp-code-num {
   color: var(--muted);
@@ -436,41 +436,47 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
   padding: 0 10px 0 0;
   line-height: 1.65;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
+  user-select: none;
+  border-right: 1px solid var(--hair2);
 }
-.mp-code-edit {
-  flex: 1 1 auto;
-  position: relative;
-  min-width: 0;
-}
-.mp-code-highlight,
-.mp-code-textarea {
-  margin: 0;
+.mp-code-line {
+  color: var(--ink);
+  padding: 0 16px 0 14px;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 12.5px;
   line-height: 1.65;
-  letter-spacing: 0;
-  white-space: pre-wrap;          /* wrap long lines instead of horizontal scroll */
+  white-space: pre-wrap;
   word-break: break-word;
-  overflow-wrap: anywhere;        /* break unbroken tokens (paths, identifiers) */
+  overflow-wrap: anywhere;
   tab-size: 2;
-  padding: 14px 16px 24px 14px;
-  border: 0;
-}
-.mp-code-highlight {
-  color: var(--ink);
-  pointer-events: none;
-  display: block;
-  min-height: 100%;
+  min-width: 0;
 }
 .mp-code-textarea {
   position: absolute;
-  inset: 0;
+  top: 14px;
+  bottom: 24px;
+  left: 44px;          /* skip the gutter column */
+  right: 0;
+  margin: 0;
+  padding: 0 16px 0 14px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  tab-size: 2;
   resize: none;
   outline: none;
+  border: 0;
   background: transparent;
   color: transparent;
   caret-color: var(--ink);
   overflow: hidden;
+}
+.mp-code-textarea::selection {
+  background: color-mix(in oklab, var(--accent) 25%, transparent);
+  color: transparent;
 }
 .mp-code-textarea::selection {
   background: color-mix(in oklab, var(--accent) 25%, transparent);
@@ -980,11 +986,25 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
 }
 
 .mpm-code-body { font-size: 11.5px; line-height: 1.6; }
-.mpm-code-body .mp-code-gutter { width: 36px; padding: 10px 0 16px; }
-.mpm-code-body .mp-code-num    { padding-right: 8px; font-size: 10.5px; line-height: 1.6; }
-.mpm-code-body .mp-code-highlight,
+.mpm-code-body .mp-code-grid {
+  grid-template-columns: 36px minmax(0, 1fr);
+  padding: 10px 0 16px;
+}
+.mpm-code-body .mp-code-num {
+  padding-right: 8px;
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+.mpm-code-body .mp-code-line {
+  padding: 0 14px 0 12px;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
 .mpm-code-body .mp-code-textarea {
-  padding: 10px 14px 16px 12px;
+  top: 10px;
+  bottom: 16px;
+  left: 36px;
+  padding: 0 14px 0 12px;
   font-size: 11.5px;
   line-height: 1.6;
 }

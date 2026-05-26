@@ -502,23 +502,166 @@ void System_setPartialInstantiation(int v)   { omcweb_partialInstantiation = v; 
 int  System_getUsesCardinality(void)         { return omcweb_usesCardinality; }
 
 /* ---- module / file enumeration ------------------------------------------ */
+/* Real implementations using opendir/readdir — needed for OMC's MODELICAPATH
+ * search to find MSL packages staged into MEMFS at runtime. The earlier no-op
+ * stubs left OMC's library auto-loader silently returning "no match" even
+ * when the package was right there. Ports a trimmed subset of OMC's
+ * upstream Compiler/runtime/systemimpl.c. */
 
+#include <dirent.h>
+
+static int omcweb_file_exists_in_dir(const char* d1, const char* d2, const char* fn) {
+  size_t n = strlen(d1) + strlen(d2) + strlen(fn) + 3;
+  char* p = (char*) malloc(n);
+  if (!p) return 0;
+  snprintf(p, n, "%s/%s/%s", d1, d2, fn);
+  struct stat sb;
+  int ok = (stat(p, &sb) == 0) && S_ISREG(sb.st_mode);
+  free(p);
+  return ok;
+}
+
+/* Returns the highest version "Modelica X.Y.Z" / "Modelica" / "Modelica.mo"
+ * entry on MODELICAPATH. mps is a Modelica list<string>. We only honour the
+ * "default" priority — version-priority chain is rare and not worth porting. */
 void System_getLoadModelPath(const char* className, modelica_metatype prios,
                              modelica_metatype mps, int requireExactVersion,
-                             const char** dir, const char** name, int* isDir) {
-  (void) className; (void) prios; (void) mps; (void) requireExactVersion;
-  /* Empty result — MSL not yet bundled in VFS. */
-  *dir = ""; *name = ""; *isDir = 0;
+                             const char** dirOut, const char** nameOut, int* isDirOut) {
+  (void) prios; (void) requireExactVersion;
+  *dirOut = ""; *nameOut = ""; *isDirOut = 0;
+  size_t nlen = strlen(className);
+
+  /* Best-version tracking: we keep the longest match (longer name = newer
+   * version, lexically). Ties: prefer the directory form over single-file. */
+  static char best_dir_buf[1024];
+  static char best_name_buf[256];
+  int best_isdir = 0;
+  size_t best_score = 0;
+  int found = 0;
+
+  /* Walk the cons-list of mps strings. */
+  while (MMC_NILHDR != MMC_GETHDR(mps)) {
+    const char* mp = MMC_STRINGDATA(MMC_CAR(mps));
+    mps = MMC_CDR(mps);
+    DIR* dp = opendir(mp);
+    if (!dp) continue;
+    struct dirent* ent;
+    while ((ent = readdir(dp))) {
+      const char* dn = ent->d_name;
+      if (dn[0] == '.' && (dn[1] == 0 || (dn[1] == '.' && dn[2] == 0))) continue;
+      if (strncmp(className, dn, nlen) != 0) continue;
+      char sep = dn[nlen];
+      if (sep != '\0' && sep != ' ' && sep != '.') continue;
+      /* Directory-with-package.mo wins over single file. */
+      int as_dir = omcweb_file_exists_in_dir(mp, dn, "package.mo");
+      int as_file = 0;
+      size_t dl = strlen(dn);
+      if (!as_dir && dl > 3 && strcmp(dn + dl - 3, ".mo") == 0) {
+        as_file = omcweb_file_exists_in_dir(mp, "", dn);
+      }
+      if (!as_dir && !as_file) continue;
+      /* score: prefer dir + longer name (later version). */
+      size_t score = dl * 2 + (as_dir ? 1 : 0);
+      if (!found || score > best_score) {
+        snprintf(best_dir_buf,  sizeof(best_dir_buf),  "%s", mp);
+        snprintf(best_name_buf, sizeof(best_name_buf), "%s", dn);
+        best_isdir = as_dir;
+        best_score = score;
+        found = 1;
+      }
+    }
+    closedir(dp);
+    if (found) break;  /* honour MODELICAPATH order */
+  }
+  if (found) {
+    *dirOut = best_dir_buf;
+    *nameOut = best_name_buf;
+    *isDirOut = best_isdir;
+  }
+}
+
+/* Lists .mo files in dir (excluding package.mo). Returns a Modelica
+ * list<string>. */
+static modelica_metatype omcweb_list_files_with_suffix(const char* dir,
+                                                       const char* suffix,
+                                                       const char* skipName) {
+  modelica_metatype res = mmc_mk_nil();
+  DIR* dp = opendir(dir);
+  if (!dp) return res;
+  struct dirent* ent;
+  size_t slen = strlen(suffix);
+  while ((ent = readdir(dp))) {
+    const char* n = ent->d_name;
+    if (n[0] == '.' && (n[1] == 0 || (n[1] == '.' && n[2] == 0))) continue;
+    if (strcmp(n, skipName) == 0) continue;
+    size_t nl = strlen(n);
+    if (nl <= slen || strcmp(n + nl - slen, suffix) != 0) continue;
+    res = mmc_mk_cons(mmc_mk_scon(n), res);
+  }
+  closedir(dp);
+  return res;
 }
 
 modelica_metatype System_moFiles(const char* dir) {
-  (void) dir;
-  return mmc_mk_nil();
+  return omcweb_list_files_with_suffix(dir, ".mo", "package.mo");
 }
 
 modelica_metatype System_mocFiles(const char* dir) {
-  (void) dir;
-  return mmc_mk_nil();
+  return omcweb_list_files_with_suffix(dir, ".moc", "package.moc");
+}
+
+/* Real readFile — reads the entire file into a MetaModelica-managed string.
+ * OMC's ClassLoader.getPackageContentNames depends on this for package.order
+ * — the empty-string stub previously broke MSL hierarchical loading. */
+const char* System_readFile(const char* filename) {
+  struct stat sb;
+  if (stat(filename, &sb) != 0 || !S_ISREG(sb.st_mode)) return "";
+  FILE* f = fopen(filename, "rb");
+  if (!f) return "";
+  size_t cap = (size_t) sb.st_size;
+  char* buf = (char*) malloc(cap + 1);
+  if (!buf) { fclose(f); return ""; }
+  size_t n = fread(buf, 1, cap, f);
+  fclose(f);
+  buf[n] = '\0';
+  return buf;
+}
+
+void System_writeFile(const char* filename, const char* contents) {
+  FILE* f = fopen(filename, "wb");
+  if (!f) return;
+  if (contents && *contents) fwrite(contents, 1, strlen(contents), f);
+  fclose(f);
+}
+
+void System_appendFile(const char* filename, const char* contents) {
+  FILE* f = fopen(filename, "ab");
+  if (!f) return;
+  if (contents && *contents) fwrite(contents, 1, strlen(contents), f);
+  fclose(f);
+}
+
+/* Lists immediate subdirectories of `dir`. Used by ClassLoader to walk
+ * structured packages. */
+modelica_metatype System_subDirectories(const char* dir) {
+  modelica_metatype res = mmc_mk_nil();
+  DIR* dp = opendir(dir);
+  if (!dp) return res;
+  struct dirent* ent;
+  while ((ent = readdir(dp))) {
+    const char* n = ent->d_name;
+    if (n[0] == '.' && (n[1] == 0 || (n[1] == '.' && n[2] == 0))) continue;
+    size_t pathLen = strlen(dir) + strlen(n) + 2;
+    char* p = (char*) malloc(pathLen);
+    if (!p) continue;
+    snprintf(p, pathLen, "%s/%s", dir, n);
+    struct stat sb;
+    int isdir = (stat(p, &sb) == 0) && S_ISDIR(sb.st_mode);
+    free(p);
+    if (isdir) res = mmc_mk_cons(mmc_mk_scon(n), res);
+  }
+  closedir(dp);
+  return res;
 }
 
 /* ---- realtime clocks (no-op timing) ------------------------------------- */

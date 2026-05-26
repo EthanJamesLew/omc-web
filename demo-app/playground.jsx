@@ -253,29 +253,33 @@ window.CodeEditor = function CodeEditor({ src, setSrc, filename = "BouncingBall.
         </div>
       </div>
       <div className="mp-code-body">
-        <div className="mp-code-gutter">
-          {htmlLines.map((_, i) => (
-            <div key={i} className="mp-code-num">{i + 1}</div>
+        {/* Paired-row grid: each logical line gets its own `[num | code]`
+            row; wrapped lines grow vertically and the number stays anchored
+            to the top of its row. The textarea overlays the code column
+            and wraps identically to the pre. */}
+        <div className="mp-code-grid">
+          {htmlLines.map((lineHtml, i) => (
+            <React.Fragment key={i}>
+              <div className="mp-code-num">{i + 1}</div>
+              <div className="mp-code-line"
+                   dangerouslySetInnerHTML={{ __html: lineHtml || "&nbsp;" }} />
+            </React.Fragment>
           ))}
         </div>
-        <div className="mp-code-edit">
-          <pre ref={preRef} className="mp-code-highlight" aria-hidden="true"
-               dangerouslySetInnerHTML={{ __html: htmlLines.map(l => l || " ").join("\n") }} />
-          <textarea
-            ref={taRef}
-            className="mp-code-textarea"
-            value={src}
-            onChange={(e) => { setSrc(e.target.value); updateCaret(); }}
-            onScroll={syncScroll}
-            onKeyUp={updateCaret}
-            onClick={updateCaret}
-            onSelect={updateCaret}
-            spellCheck={false}
-            autoCorrect="off"
-            autoCapitalize="off"
-            wrap="soft"
-          />
-        </div>
+        <textarea
+          ref={taRef}
+          className="mp-code-textarea"
+          value={src}
+          onChange={(e) => { setSrc(e.target.value); updateCaret(); }}
+          onScroll={syncScroll}
+          onKeyUp={updateCaret}
+          onClick={updateCaret}
+          onSelect={updateCaret}
+          spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
+          wrap="soft"
+        />
       </div>
       <div className="mp-pane-foot">
         <span><Icon name="folder" size={11} /> models/X</span>
@@ -766,6 +770,7 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
       errorStage, trace, modelName, matArt, fname, canRun,
       omcArgs, setOmcArgs,
       solver, setSolver, stopTime, setStopTime, stepSize, setStepSize,
+      consoleCollapsed, setConsoleCollapsed,
     }} />;
   }
 
@@ -844,7 +849,8 @@ function MobileApp(props) {
           setExpanded, setHover, run, reset, stageDurations, stageArtifacts, logs, errorStage,
           trace, modelName, matArt, fname, canRun,
           omcArgs, setOmcArgs,
-          solver, setSolver, stopTime, setStopTime, stepSize, setStepSize } = props;
+          solver, setSolver, stopTime, setStopTime, stepSize, setStepSize,
+          consoleCollapsed, setConsoleCollapsed } = props;
   const [tab, setTab] = useState(initialTab);
   const ready = progress >= 4 && !!trace;
 
@@ -892,7 +898,8 @@ function MobileApp(props) {
         {tab === "build"  && (
           <MobileBuild progress={progress} expanded={expanded} setExpanded={setExpanded}
                        stageDurations={stageDurations} stageArtifacts={stageArtifacts} logs={logs}
-                       errorStage={errorStage} />
+                       errorStage={errorStage}
+                       consoleCollapsed={consoleCollapsed} setConsoleCollapsed={setConsoleCollapsed} />
         )}
         {tab === "traces" && (
           <MobileTraces ready={ready} trace={trace} hover={hover} setHover={setHover}
@@ -952,37 +959,33 @@ function CodeEditorEmbed({ src, setSrc }) {
   const html = useMemo(() => window.highlightModelica(src), [src]);
   const lines = html.split("\n");
   const taRef = useRef(null);
-  const preRef = useRef(null);
-  const syncScroll = useCallback(() => {
-    if (!preRef.current || !taRef.current) return;
-    preRef.current.scrollTop  = taRef.current.scrollTop;
-    preRef.current.scrollLeft = taRef.current.scrollLeft;
-  }, []);
   return (
     <>
-      <div className="mp-code-gutter">
-        {lines.map((_, i) => <div key={i} className="mp-code-num">{i + 1}</div>)}
+      <div className="mp-code-grid">
+        {lines.map((lineHtml, i) => (
+          <React.Fragment key={i}>
+            <div className="mp-code-num">{i + 1}</div>
+            <div className="mp-code-line"
+                 dangerouslySetInnerHTML={{ __html: lineHtml || "&nbsp;" }} />
+          </React.Fragment>
+        ))}
       </div>
-      <div className="mp-code-edit">
-        <pre ref={preRef} className="mp-code-highlight" aria-hidden="true"
-             dangerouslySetInnerHTML={{ __html: lines.map(l => l || " ").join("\n") }} />
-        <textarea
-          ref={taRef}
-          className="mp-code-textarea"
-          value={src}
-          onChange={(e) => setSrc(e.target.value)}
-          onScroll={syncScroll}
-          spellCheck={false}
-          autoCorrect="off"
-          autoCapitalize="off"
-          wrap="soft"
-        />
-      </div>
+      <textarea
+        ref={taRef}
+        className="mp-code-textarea"
+        value={src}
+        onChange={(e) => setSrc(e.target.value)}
+        spellCheck={false}
+        autoCorrect="off"
+        autoCapitalize="off"
+        wrap="soft"
+      />
     </>
   );
 }
 
-function MobileBuild({ progress, expanded, setExpanded, stageDurations, stageArtifacts, logs, errorStage }) {
+function MobileBuild({ progress, expanded, setExpanded, stageDurations, stageArtifacts, logs, errorStage,
+                       consoleCollapsed, setConsoleCollapsed }) {
   return (
     <div className="mpm-pane mpm-pane--scroll">
       <div className="mpm-paneh">
@@ -999,12 +1002,10 @@ function MobileBuild({ progress, expanded, setExpanded, stageDurations, stageArt
                          stageDurations={stageDurations} stageArtifacts={stageArtifacts}
                          stageLogs={logs} errorStage={errorStage} compact />
       </div>
-      <div className="mpm-section-head">
-        <span>output</span>
-        <span className="mpm-paneh-meta">auto-scroll</span>
-      </div>
-      <div className="mpm-build-log">
-        <window.LogConsole logs={logs} />
+      <div className={`mpm-build-log ${consoleCollapsed ? "is-collapsed" : ""}`}>
+        <window.LogConsole logs={logs}
+                           collapsed={consoleCollapsed}
+                           onToggle={() => setConsoleCollapsed(c => !c)} />
       </div>
     </div>
   );

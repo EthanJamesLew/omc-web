@@ -30,60 +30,55 @@ end BouncingBall;
 `,
   },
   {
-    id: "cccv-stack",
-    name: "CCCV_Stack.mo",
-    label: "CCCV_Stack",
-    description: "battery stack — annotations + within stripped; still needs MSL types",
+    id: "freefall-msl",
+    name: "FreeFallMSL.mo",
+    label: "FreeFallMSL",
+    description: "minimum MSL test — extends Modelica.Icons.Example",
     needsMSL: true,
-    source: `model CCCV_Stack
-  "Charge a stack with constant current - constant voltage characteristic"
-  extends Modelica.Icons.Example;
-  parameter Modelica.Units.SI.Current Isc = 1200 "Short-circuit current of cell at OCVmax";
-  parameter Modelica.Electrical.Batteries.ParameterRecords.ExampleData cellDataOriginal(
-    Qnom=18000,
-    useLinearSOCDependency=false,
-    Ri=cellDataOriginal.OCVmax/Isc,
-    Idis=0.001) "Original cell data";
-  parameter Modelica.Electrical.Batteries.ParameterRecords.ExampleData cellDataDegraded(
-    Qnom=18000,
-    useLinearSOCDependency=false,
-    Ri=2*cellDataDegraded.OCVmax/Isc,
-    Idis=0.001) "Degraded cell data";
-  parameter Modelica.Electrical.Batteries.ParameterRecords.StackData
-    stackData(
-    Ns=3,
-    Np=2,
-    kDegraded=[1,1],
-    cellDataOriginal=cellDataOriginal,
-    cellDataDegraded=cellDataDegraded) "Stack data";
-  Modelica.Electrical.Batteries.Utilities.CCCVcharger cccvCharger(I=stackData.Np*25, Vend=stackData.Ns*4.2);
-  Modelica.Electrical.Analog.Basic.Ground ground;
-  Modelica.Electrical.Batteries.BatteryStacksWithSensors.Stack stack(
-    stackData=stackData,
-    useHeatPort=true,
-    SOC0=fill(
-          0.1,
-          stackData.Ns,
-          stackData.Np));
-  Modelica.Electrical.Batteries.Utilities.BusTranscription busTranscription(
-      Np=stackData.Np, Ns=stackData.Ns);
-  Modelica.Thermal.HeatTransfer.Components.ThermalCollectorMatrix thermalCollectorMatrix(
-    Ns=stackData.Ns, Np=stackData.Np);
-  Modelica.Thermal.HeatTransfer.Sources.FixedTemperature fixedTemperature(T=293.15);
-  Modelica.Electrical.Analog.Sensors.MultiSensor multiSensor;
-  Modelica.Blocks.Continuous.Integrator energy(u(unit="W"), y(unit="J"));
+    source: `model FreeFallMSL "Minimum MSL test: free-fall with the Icons.Example marker"
+  import Modelica.Icons;
+  extends Icons.Example;
+  Real h(start=1.0, fixed=true) "height";
+  Real v(start=0.0, fixed=true) "velocity";
 equation
-  connect(ground.p, cccvCharger.n);
-  connect(ground.p, stack.n);
-  connect(stack.stackBus, busTranscription.stackBus);
-  connect(stack.heatPort, thermalCollectorMatrix.port_a);
-  connect(thermalCollectorMatrix.port_b, fixedTemperature.port);
-  connect(cccvCharger.p, multiSensor.pc);
-  connect(multiSensor.pc, multiSensor.pv);
-  connect(ground.p, multiSensor.nv);
-  connect(multiSensor.nc, stack.p);
-  connect(multiSensor.power, energy.u);
-end CCCV_Stack;
+  der(h) = v;
+  der(v) = -9.81;
+end FreeFallMSL;
+`,
+  },
+  {
+    id: "chua-circuit",
+    name: "ChuaCircuit.mo",
+    label: "ChuaCircuit",
+    description: "Chua's chaotic oscillator — uses MSL Electrical.Analog",
+    needsMSL: true,
+    source: `model ChuaCircuit "Chua's circuit — the canonical chaotic electronic oscillator"
+  import Modelica.Icons;
+  import Modelica.Electrical.Analog.Basic;
+  import Modelica.Electrical.Analog.Examples.Utilities.NonlinearResistor;
+
+  extends Icons.Example;
+
+  Basic.Inductor   L (L=18,   i(start=0, fixed=true));
+  Basic.Resistor   Ro(R=12.5e-3);
+  Basic.Conductor  G (G=0.565);
+  Basic.Capacitor  C1(C=10,   v(start=4, fixed=true));
+  Basic.Capacitor  C2(C=100,  v(start=0, fixed=true));
+  NonlinearResistor Nr(Ga(min=-1) = -0.757576,
+                       Gb(min=-1) = -0.409091,
+                       Ve         = 1);
+  Basic.Ground     Gnd;
+equation
+  connect(L.n,  Ro.p);
+  connect(C2.p, G.p);
+  connect(L.p,  G.p);
+  connect(G.n,  Nr.p);
+  connect(C1.p, G.n);
+  connect(Ro.n, Gnd.p);
+  connect(C2.n, Gnd.p);
+  connect(Gnd.p, C1.n);
+  connect(Gnd.p, Nr.n);
+end ChuaCircuit;
 `,
   },
 ];

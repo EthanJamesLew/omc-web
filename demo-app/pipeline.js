@@ -81,6 +81,42 @@ const COMPILE_DEFS = [
 let omcReady   = false;
 let emcePromise = null;
 let emceStaged = false;
+let mslPromise = null;       // memoized MSL staging — paid once per page load
+
+// Heuristic: any source that references `Modelica.X` (where X starts with an
+// uppercase letter) needs MSL loaded. Same for `within Modelica.…` or
+// `import Modelica.…`. Skips the pack for the simple BouncingBall demo.
+function sourceNeedsMSL(src) {
+  return /\bModelica\.[A-Z]/.test(src) || /\b(within|import)\s+Modelica\b/.test(src);
+}
+
+// Extract the user's top-level class name from the source. We need it when
+// MSL is also loaded — otherwise OMC has multiple top-level classes (Modelica
+// + the user's) and picks Modelica as the simulation target. Tracking the
+// user's model name lets us pin it via +i=<Name>.
+function extractModelName(src) {
+  const m = src.match(/(?:^|\n)\s*(?:partial\s+)?(?:model|block|class|record|function|package|connector|type)\s+([A-Za-z_]\w*)/);
+  return m ? m[1] : null;
+}
+
+// Which Modelica subpackages (e.g. Icons, Units, Electrical) does the source
+// reference, either qualified (`Modelica.Foo`) or via import (`import Modelica.Foo;`)?
+// Returns the set of top-level names (after "Modelica."). We use these to
+// pick which MSL .mo files to feed OMC directly, side-stepping the broken
+// structured-library auto-loader.
+function neededMSLSubpackages(src) {
+  const seen = new Set();
+  const re1 = /\bModelica\.([A-Z][A-Za-z0-9_]*)/g;
+  const re2 = /\bimport\s+Modelica\.([A-Z][A-Za-z0-9_]*)/g;
+  let m;
+  while ((m = re1.exec(src))) seen.add(m[1]);
+  while ((m = re2.exec(src))) seen.add(m[1]);
+  return [...seen];
+}
+
+function existsFS(FS, path) {
+  try { FS.stat(path); return true; } catch { return false; }
+}
 
 // Emscripten captured Module["print"]/Module["printErr"] into local closures
 // at init time, so we can't swap them after the fact. index.html's print
@@ -88,6 +124,31 @@ let emceStaged = false;
 // for a given pipeline stage, we just swap that pointer.
 function setOmcSink(sink) {
   if (window.__omcweb) window.__omcweb.sink = sink;
+}
+
+// MEMFS lets fopen("/") succeed and only fails on the subsequent fread with
+// EISDIR — ANTLR3 then aborts the whole library load. POSIX would either
+// fail the open or return EOF on read. Our fix: when "/" is opened in
+// non-directory mode, hand back a stream that reads as an empty file. OMC
+// then sees a 0-byte result instead of an error and moves on.
+const EMPTY_SHIM_PATH = "/__omcweb_empty_shim";
+let memfsPatched = false;
+function patchMEMFSDirRead() {
+  if (memfsPatched) return;
+  const FS = window.Module?.FS;
+  if (!FS || !FS.open) return;
+  try { FS.writeFile(EMPTY_SHIM_PATH, ""); } catch {}
+  const origOpen = FS.open.bind(FS);
+  FS.open = function (path, flags, mode) {
+    if (path === "/") {
+      const flagsN = typeof flags === "number" ? flags : 0;
+      if ((flagsN & 0o200000) === 0) {
+        return origOpen(EMPTY_SHIM_PATH, flags, mode);
+      }
+    }
+    return origOpen(path, flags, mode);
+  };
+  memfsPatched = true;
 }
 
 function whenOmcReady() {
@@ -111,21 +172,92 @@ function splitOmcArgs(s) {
   return (s || "").trim().split(/\s+/).filter(Boolean);
 }
 
+// Stage the Modelica Standard Library into omc.wasm's MEMFS at the standard
+// $OPENMODELICAHOME/lib/omlibrary/Modelica/ location. OMC's library scanner
+// accepts both unversioned and versioned dir names; unversioned is simpler
+// and avoids any concern about dirent d_name truncation around the space.
+const MSL_DEST    = "/omc/lib/omlibrary";
+const MSL_DIRNAME = "Modelica";
+async function stageMSL(sink) {
+  if (mslPromise) return mslPromise;
+  mslPromise = (async () => {
+    sink("info", "loading Modelica Standard Library (msl-full.zip ~21 MB)…");
+    const t0 = performance.now();
+    const r = await fetch(assetUrl("msl-full.zip"));
+    if (!r.ok) throw new Error("MSL fetch failed: HTTP " + r.status);
+    const buf = await r.arrayBuffer();
+    sink("info", `MSL downloaded (${(buf.byteLength / 1024 / 1024).toFixed(1)} MB)`);
+    const zip = await window.JSZip.loadAsync(buf);
+    const FS = window.Module.FS;
+
+    // Rewrite each `Modelica/...` zip path to `Modelica X.Y.Z/...` so the
+    // loader finds the versioned layout it expects.
+    const remap = (zipPath) => zipPath.replace(/^Modelica\//, `${MSL_DIRNAME}/`);
+
+    const fileEntries = [];
+    const dirs = new Set();
+    zip.forEach((path, entry) => {
+      if (entry.dir) return;
+      const out = remap(path);
+      fileEntries.push({ outPath: out, entry });
+      const parts = out.split("/");
+      for (let i = 1; i < parts.length; i++) dirs.add(MSL_DEST + "/" + parts.slice(0, i).join("/"));
+    });
+
+    for (const p of ["/omc/lib", MSL_DEST]) { try { FS.mkdir(p); } catch {} }
+    for (const d of [...dirs].sort((a, b) => a.length - b.length)) {
+      try { FS.mkdir(d); } catch {}
+    }
+    for (const { outPath, entry } of fileEntries) {
+      const data = await entry.async("uint8array");
+      try { FS.writeFile(MSL_DEST + "/" + outPath, data); } catch (e) {
+        sink("warn", "write fail " + outPath + ": " + e.message);
+      }
+    }
+    const dur = ((performance.now() - t0) / 1000).toFixed(1);
+    sink("ok", `MSL staged · ${fileEntries.length} files into ${MSL_DEST}/${MSL_DIRNAME} · ${dur}s`);
+  })();
+  try {
+    await mslPromise;
+  } catch (e) {
+    mslPromise = null;        // allow retry on transient failures
+    throw e;
+  }
+  return mslPromise;
+}
+
 async function callOMC(src, omcArgs, sink) {
   setOmcSink(sink);
+  patchMEMFSDirRead();
   try {
     const FS = window.Module.FS;
     FS.writeFile("/X.mo", src);
 
-    // Clear previous output files from the OMC FS (preserve system dirs and
-    // the input file we just wrote).
-    const keep = new Set(["", ".", "..", "tmp", "home", "dev", "proc", "omc", "X.mo"]);
+    // Clear previous output files from the OMC FS. Preserve system dirs, the
+    // input file, and the staged Modelica/ tree (an expensive one-shot — we
+    // don't want each run to re-fetch the 21 MB MSL pack).
+    const keep = new Set(["", ".", "..", "tmp", "home", "dev", "proc", "omc", "X.mo", "Modelica"]);
     for (const f of FS.readdir("/")) {
       if (keep.has(f)) continue;
       try { FS.unlink("/" + f); } catch {}
     }
 
-    const argv = [...splitOmcArgs(omcArgs), "/X.mo"];
+    // Source uses MSL → stage the pack then pass `Modelica` as a library
+    // include (per `omc --help`: `omc Model.mo Modelica` loads the library
+    // first, then processes the model). OMC's library loader walks the
+    // versioned `Modelica X.Y.Z/` directory we just staged. Pin the
+    // simulation target via +i=<UserClass> so OMC doesn't try to instantiate
+    // the Modelica package itself.
+    const pinExtras = [];
+    const libraryIncludes = [];
+    if (sourceNeedsMSL(src)) {
+      await stageMSL(sink);
+      const userClass = extractModelName(src);
+      if (userClass) pinExtras.push(`+i=${userClass}`);
+      libraryIncludes.push("Modelica");
+    }
+
+    const argv = [...splitOmcArgs(omcArgs), ...pinExtras, "/X.mo", ...libraryIncludes];
     sink("cmd", "$ omc " + argv.join(" "));
     let exitCode = null;
     try {

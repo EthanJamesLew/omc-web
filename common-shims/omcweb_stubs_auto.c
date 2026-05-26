@@ -467,9 +467,9 @@ const char* SystemImpl__winGetSystemDirectoryA(void) {
   return "";
 }
 
-void System_appendFile(const char* , const char*) {
-
-}
+/* Real impl in omcweb_stubs.c — must actually write to MEMFS for OMC to
+ * detect side-effects on package.order, build dirs, etc. */
+extern void System_appendFile(const char* fname, const char* str);
 
 void System_freeFunction(int , int) {
 
@@ -583,9 +583,9 @@ const char* System_readEnv(const char*) {
   return "";
 }
 
-const char* System_readFile(const char*) {
-  return "";
-}
+/* Real impl in omcweb_stubs.c — OMC's class loader reads package.order +
+ * .mo files via this; the empty-string stub broke MSL hierarchical load. */
+extern const char* System_readFile(const char* fname);
 
 double System_realtimeAccumulate(int) {
   return 0.0;
@@ -635,17 +635,17 @@ const char* System_stringFindString(const char* , const char*) {
   return "";
 }
 
-modelica_metatype System_subDirectories(const char*) {
-  return mmc_mk_nil();
-}
+/* System_subDirectories is provided as a real implementation in
+ * omcweb_stubs.c (uses opendir/readdir). The auto-generated stub here would
+ * cause a duplicate-symbol error — keep it as a forward declaration only. */
+extern modelica_metatype System_subDirectories(const char* dir);
 
 void System_threadFail(OpenModelica_threadData_ThreadData*) {
 
 }
 
-void System_writeFile(const char* , const char*) {
-
-}
+/* Real impl in omcweb_stubs.c */
+extern void System_writeFile(const char* fname, const char* str);
 
 int setenv(const char* , const char* , int) {
   return 0;
