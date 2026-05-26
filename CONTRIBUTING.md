@@ -13,10 +13,17 @@ make serve            # serve web/public/ at :8080
 
 Outside Docker you need:
 
-- **Two emsdks**: 3.1.74 (compiler) and 3.1.24 (sim-runtime). Install with
-  `emsdk install 3.1.74 && emsdk install 3.1.24`. The Makefile activates
-  the right one per project via `EMSDK_DIR`/`EMSDK_VER` env vars.
-- python3, zip, brotli, node 18+, ccache.
+- The repo's `emsdk/` clone (created by `scripts/install-emsdk.sh`).
+- python3, zip, brotli, node 18+, ccache, openjdk-17 (ANTLR3).
+
+The build needs **two emsdk versions** — 3.1.74 (compiler/omc.wasm) and
+3.1.24 (sim-runtime, runtime-fs sysroot, because emception bundles
+LLVM-16). Outside Docker we share a single `emsdk/` dir; each project's
+Makefile declares its required `EMSDK_VERSION` and runs
+`tools/use-emsdk.sh <ver>` before any compile recipe, which
+auto-switches if needed. Inside Docker both versions are baked
+side-by-side at `/opt/emsdk/3.1.{24,74}` and the env vars point
+directly — no switching.
 
 Per-project rebuilds:
 
