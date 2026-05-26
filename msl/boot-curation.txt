@@ -14,11 +14,8 @@ Constants.mo
 ComplexMath.mo
 
 Math
-Units
-SIunits.mo
+Units.mo
 
 Blocks
 Mechanics
 Electrical/Analog
-
-ObsoleteModelica4.mo
