@@ -76,18 +76,25 @@ function fmtBytes(n) {
 // ─── topbar ──────────────────────────────────────────────────────────────────
 window.Topbar = function Topbar({
   running, onRun, onReset, status, statusLabel,
-  modelName, solver, setSolver, stopTime, setStopTime, stepSize, setStepSize, canRun,
+  modelName, omcArgs, setOmcArgs, solver, setSolver,
+  stopTime, setStopTime, stepSize, setStepSize, canRun,
 }) {
+  const [omcOpen, setOmcOpen] = useState(false);
   const [solverOpen, setSolverOpen] = useState(false);
-  const popRef = useRef(null);
+  const omcRef = useRef(null);
+  const solverRef = useRef(null);
   useEffect(() => {
-    if (!solverOpen) return;
     const handler = (e) => {
-      if (popRef.current && !popRef.current.contains(e.target)) setSolverOpen(false);
+      if (omcRef.current    && !omcRef.current.contains(e.target))    setOmcOpen(false);
+      if (solverRef.current && !solverRef.current.contains(e.target)) setSolverOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [solverOpen]);
+  }, []);
+
+  // Trim the OMC arg string to one line of preview text so it doesn't blow
+  // out the pill width.
+  const omcPreview = omcArgs.length > 28 ? omcArgs.slice(0, 26) + "…" : omcArgs;
 
   return (
     <div className="mp-topbar">
@@ -108,7 +115,25 @@ window.Topbar = function Topbar({
           <span className="mp-tlbl">target</span>
           <span className="mp-tval">wasm32-unknown</span>
         </div>
-        <div className="mp-target" ref={popRef} onClick={() => setSolverOpen(o => !o)}>
+        <div className="mp-target" ref={omcRef} onClick={() => setOmcOpen(o => !o)}>
+          <span className="mp-tlbl">omc</span>
+          <span className="mp-tval">{omcPreview}</span>
+          <Icon name="chevrond" size={11} />
+          {omcOpen && (
+            <div className="mp-popover mp-popover--wide" onClick={(e) => e.stopPropagation()}>
+              <div className="mp-popover-row mp-popover-row--stack">
+                <label>omc argv</label>
+                <input type="text" value={omcArgs} spellCheck={false}
+                       onChange={(e) => setOmcArgs(e.target.value)} />
+              </div>
+              <div className="mp-popover-hint">
+                appended with <code>/X.mo</code> at call time. defaults:{" "}
+                <code>+s --matchingAlgorithm=BFSB</code>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="mp-target" ref={solverRef} onClick={() => setSolverOpen(o => !o)}>
           <span className="mp-tlbl">solver</span>
           <span className="mp-tval">{solver} · t<sub>end</sub>={stopTime}s</span>
           <Icon name="chevrond" size={11} />
@@ -555,9 +580,10 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
   const [omcReady, setOmcReady] = useState(false);
   const [pipeReady, setPipeReady] = useState(!!window.OMCPipeline);
 
-  const [solver, setSolver]     = useState("euler");
-  const [stopTime, setStopTime] = useState(2);
-  const [stepSize, setStepSize] = useState(0.1);
+  const [omcArgs, setOmcArgs]   = useState("+s --matchingAlgorithm=BFSB");
+  const [solver, setSolver]     = useState("rungekutta");
+  const [stopTime, setStopTime] = useState(3.2);
+  const [stepSize, setStepSize] = useState(0.01);
 
   // Wait for the omc runtime + the pipeline module to both be ready.
   useEffect(() => {
@@ -595,7 +621,7 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
     };
 
     try {
-      const { modelName: mn } = await window.OMCPipeline.runFull(src, { stopTime, stepSize, solver }, hooks);
+      const { modelName: mn } = await window.OMCPipeline.runFull(src, { stopTime, stepSize, solver, omcArgs }, hooks);
       setModelName(mn);
       setExpanded("sim");
     } catch (e) {
@@ -607,7 +633,7 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
     } finally {
       setRunning(false);
     }
-  }, [src, solver, stopTime, stepSize, canRun, progress]);
+  }, [src, solver, stopTime, stepSize, omcArgs, canRun, progress]);
 
   const reset = useCallback(() => {
     setProgress(0);
@@ -657,6 +683,7 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
       running={running} onRun={run} onReset={reset}
       status={status} statusLabel={statusLabel}
       modelName={modelName}
+      omcArgs={omcArgs} setOmcArgs={setOmcArgs}
       solver={solver} setSolver={setSolver}
       stopTime={stopTime} setStopTime={setStopTime}
       stepSize={stepSize} setStepSize={setStepSize}
@@ -669,6 +696,7 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
       src, setSrc, progress, running, expanded, hover, status, statusLabel,
       setExpanded, setHover, run, reset, stageDurations, stageArtifacts, logs,
       errorStage, trace, modelName, matArt, fname, canRun,
+      omcArgs, setOmcArgs,
       solver, setSolver, stopTime, setStopTime, stepSize, setStepSize,
     }} />;
   }
@@ -745,6 +773,7 @@ function MobileApp(props) {
   const { initialTab = "build", src, setSrc, progress, running, expanded, hover, status, statusLabel,
           setExpanded, setHover, run, reset, stageDurations, stageArtifacts, logs, errorStage,
           trace, modelName, matArt, fname, canRun,
+          omcArgs, setOmcArgs,
           solver, setSolver, stopTime, setStopTime, stepSize, setStepSize } = props;
   const [tab, setTab] = useState(initialTab);
   const ready = progress >= 4 && !!trace;

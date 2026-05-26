@@ -161,6 +161,7 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
   flex-direction: column;
   gap: 6px;
 }
+.mp-popover--wide { min-width: 340px; }
 .mp-popover-row {
   display: grid;
   grid-template-columns: 70px 1fr;
@@ -168,6 +169,10 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
   gap: 8px;
   font-size: 11px;
   color: var(--sub);
+}
+.mp-popover-row--stack {
+  grid-template-columns: 1fr;
+  align-items: stretch;
 }
 .mp-popover-row label { color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
 .mp-popover-row input,
@@ -178,9 +183,23 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
   border-radius: 4px;
   background: var(--panel);
   color: var(--ink);
+  min-width: 0;
 }
 .mp-popover-row input:focus,
 .mp-popover-row select:focus { outline: none; border-color: var(--accent); }
+.mp-popover-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.4;
+  padding: 0 2px;
+}
+.mp-popover-hint code {
+  background: var(--hair2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--sub);
+}
 
 .mp-status {
   display: flex; align-items: center; gap: 6px;
@@ -240,6 +259,8 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
 
 .mp-col {
   min-width: 0;
+  min-height: 0;       /* let the col actually shrink inside the grid cell so */
+  overflow: hidden;    /* pane-body's overflow: auto can take over the scroll */
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--hair);

@@ -1,14 +1,21 @@
 // Default Modelica source for the playground + a tiny syntax highlighter.
-// The default is the freefall (no MSL) variant — that's the smoke-tested path
-// through omc → emception → sim. Users can edit it in place; events / MSL
-// support is a follow-on.
-window.MODELICA_SOURCE = `model BouncingBall
-  parameter Real g = 9.81 "gravity";
-  Real h(start=1.0, fixed=true) "height";
-  Real v(start=0.0, fixed=true) "velocity";
+// The default is the classic bouncing ball with restitution — exercises type
+// aliases, initial equations, when/reinit event handling.
+window.MODELICA_SOURCE = `model BouncingBall "The 'classic' bouncing ball model"
+  type Height=Real(unit="m");
+  type Velocity=Real(unit="m/s");
+  parameter Real e=0.8 "Coefficient of restitution";
+  parameter Height h0=1.0 "Initial height";
+  Height h "Height";
+  Velocity v(start=0.0, fixed=true) "Velocity";
+initial equation
+  h = h0;
 equation
-  der(h) = v;
-  der(v) = -g;
+  v = der(h);
+  der(v) = -9.81;
+  when h<0 then
+    reinit(v, -e*pre(v));
+  end when;
 end BouncingBall;
 `;
 
@@ -20,7 +27,7 @@ window.highlightModelica = function (src) {
     'import','annotation','within','constant','discrete','flow','input',
     'output','protected','public','final','redeclare','replaceable',
     'partial','encapsulated','stream','der','pre','reinit','initial','and',
-    'or','not','true','false','fixed','start',
+    'or','not','true','false','fixed','start','unit',
   ]);
   function esc(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

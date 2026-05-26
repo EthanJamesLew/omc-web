@@ -107,7 +107,13 @@ function whenOmcReady() {
 
 // ─── stage 1+2: omc.wasm (Modelica → C) ──────────────────────────────────────
 
-async function callOMC(src, sink) {
+// Split an omc argv string into individual args. Whitespace-only — no
+// quoting; the user can edit the popover input if they need anything fancy.
+function splitOmcArgs(s) {
+  return (s || "").trim().split(/\s+/).filter(Boolean);
+}
+
+async function callOMC(src, omcArgs, sink) {
   omcSink = sink;
   try {
     const FS = window.Module.FS;
@@ -121,9 +127,10 @@ async function callOMC(src, sink) {
       try { FS.unlink("/" + f); } catch {}
     }
 
-    sink("cmd", "$ omc +s --matchingAlgorithm=BFSB /X.mo");
+    const argv = [...splitOmcArgs(omcArgs), "/X.mo"];
+    sink("cmd", "$ omc " + argv.join(" "));
     try {
-      const ret = window.Module.callMain(["+s", "--matchingAlgorithm=BFSB", "/X.mo"]);
+      const ret = window.Module.callMain(argv);
       sink("info", "omc returned " + ret);
     } catch (e) {
       if (e && e.name !== "ExitStatus") throw e;
@@ -453,7 +460,7 @@ async function runFull(src, opts, hooks) {
   // an immediate hand-off in stage 1).
   onStageStart(0);
   const sink0 = makeSink("parse", onLog);
-  const { files, modelName } = await callOMC(src, sink0);
+  const { files, modelName } = await callOMC(src, opts.omcArgs, sink0);
   stamps.push(performance.now());
   onStageDone(0, {
     name: modelName + ".mo",
