@@ -16,17 +16,14 @@ web/public/
 tests/runners/browser/node_modules/
 tests/runners/node/node_modules/
 
-# Don't ignore the built wasm: it lives in web/ so the static site is
-# self-contained when checked out. The build script regenerates it.
-!web/omc.wasm
-
-# Same rule for the in-browser compile assets — they're part of the
-# distributed static site, not transient build output.
-!web/emscripten-libs/
-!web/emscripten-libs/*.a
-!web/model-bundle/
-!web/model-bundle/libs/*.a
-!web/model-bundle/objs/*.o
+# Old PoC assets (moved into re-poc/web/) — keep tracked so the frozen
+# reference at v0.1-poc remains runnable.
+!re-poc/web/omc.wasm
+!re-poc/web/emscripten-libs/
+!re-poc/web/emscripten-libs/*.a
+!re-poc/web/model-bundle/
+!re-poc/web/model-bundle/libs/*.a
+!re-poc/web/model-bundle/objs/*.o
 
 # The repo-root .gitignore ignores `*.mo` (for gettext translations).
 # Our `.mo` files are Modelica source — track them.
