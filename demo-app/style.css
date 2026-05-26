@@ -285,9 +285,15 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
 }
 .mp-pane:last-child { border-bottom: none; }
 .mp-pane--pipe    { flex: 1 1 auto; min-height: 0; }
-.mp-pane--console { flex: none; height: 260px; background: var(--inset); }
+.mp-pane--console { flex: none; height: 260px; background: var(--inset); transition: height .15s ease; }
+.mp-pane--console.is-collapsed { height: 36px; }
 .mp-pane--console-tall { flex: none; height: 320px; }
 .mp-pane--trace   { flex: 1 1 auto; }
+
+/* Clickable pane header (build output toggle). */
+.mp-pane-head--clickable { cursor: pointer; user-select: none; }
+.mp-pane-head--clickable:hover { background: var(--hair2); }
+.mp-pane--console .mp-pane-head--clickable:hover { background: color-mix(in oklab, var(--ink) 4%, var(--inset)); }
 
 .mp-pane-head {
   height: 36px; flex: none;

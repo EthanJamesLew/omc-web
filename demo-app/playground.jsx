@@ -15,6 +15,7 @@ window.Icon = function Icon({ name, size = 14, stroke = 1.5 }) {
     dot:      <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />,
     chevron:  <polyline points="9 6 15 12 9 18" />,
     chevrond: <polyline points="6 9 12 15 18 9" />,
+    chevronu: <polyline points="6 15 12 9 18 15" />,
     cpu:      <><rect x="4" y="4" width="16" height="16" rx="2" /><rect x="9" y="9" width="6" height="6" /><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" /></>,
     code:     <><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></>,
     chart:    <><path d="M3 3v18h18" /><path d="m7 14 3-3 4 4 5-6" /></>,
@@ -373,41 +374,50 @@ window.ArtifactRow = function ArtifactRow({ art }) {
 };
 
 // ─── log console ─────────────────────────────────────────────────────────────
-window.LogConsole = function LogConsole({ logs }) {
+window.LogConsole = function LogConsole({ logs, collapsed = false, onToggle }) {
   const ref = useRef();
   const [autoScroll, setAutoScroll] = useState(true);
   useEffect(() => {
-    if (autoScroll && ref.current) ref.current.scrollTop = ref.current.scrollHeight;
-  }, [logs.length, autoScroll]);
+    if (!collapsed && autoScroll && ref.current) ref.current.scrollTop = ref.current.scrollHeight;
+  }, [logs.length, autoScroll, collapsed]);
+  const toggleable = !!onToggle;
   return (
-    <div className="mp-console">
-      <div className="mp-pane-head">
+    <div className={`mp-console ${collapsed ? "is-collapsed" : ""}`}>
+      <div className={`mp-pane-head ${toggleable ? "mp-pane-head--clickable" : ""}`}
+           onClick={toggleable ? onToggle : undefined}>
         <div className="mp-pane-title">
           <Icon name="code" size={12} />
           <span>build output</span>
         </div>
         <div className="mp-pane-meta">
           <span>{logs.length} lines</span>
-          <span>·</span>
-          <span style={{ cursor: "pointer", color: autoScroll ? "var(--accent)" : "var(--muted)" }}
-                onClick={() => setAutoScroll(a => !a)}>
-            auto-scroll
-          </span>
+          {!collapsed && (
+            <>
+              <span>·</span>
+              <span style={{ cursor: "pointer", color: autoScroll ? "var(--accent)" : "var(--muted)" }}
+                    onClick={(e) => { e.stopPropagation(); setAutoScroll(a => !a); }}>
+                auto-scroll
+              </span>
+            </>
+          )}
+          {toggleable && <Icon name={collapsed ? "chevronu" : "chevrond"} size={12} />}
         </div>
       </div>
-      <div className="mp-console-body" ref={ref}>
-        {logs.map((row, i) => (
-          <div key={i} className={`mp-log-row mp-log-row--${row.level.trim()}`}>
-            <span className="mp-log-t">{row.t}</span>
-            <span className="mp-log-lvl">{row.level}</span>
-            <span className="mp-log-msg">{row.msg}</span>
-            <span className="mp-log-stage">[{row.stage}]</span>
-          </div>
-        ))}
-        {logs.length === 0 && (
-          <div className="mp-console-empty">press <kbd>run</kbd> to start the build pipeline.</div>
-        )}
-      </div>
+      {!collapsed && (
+        <div className="mp-console-body" ref={ref}>
+          {logs.map((row, i) => (
+            <div key={i} className={`mp-log-row mp-log-row--${row.level.trim()}`}>
+              <span className="mp-log-t">{row.t}</span>
+              <span className="mp-log-lvl">{row.level}</span>
+              <span className="mp-log-msg">{row.msg}</span>
+              <span className="mp-log-stage">[{row.stage}]</span>
+            </div>
+          ))}
+          {logs.length === 0 && (
+            <div className="mp-console-empty">press <kbd>run</kbd> to start the build pipeline.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -584,6 +594,13 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
   const [solver, setSolver]     = useState("rungekutta");
   const [stopTime, setStopTime] = useState(3.2);
   const [stepSize, setStepSize] = useState(0.01);
+  const [consoleCollapsed, setConsoleCollapsed] = useState(true);
+
+  // When a run fails, auto-expand the build output so the error lines are
+  // immediately visible without the user having to click.
+  useEffect(() => {
+    if (errorStage != null) setConsoleCollapsed(false);
+  }, [errorStage]);
 
   // Wait for the omc runtime + the pipeline module to both be ready.
   useEffect(() => {
@@ -736,8 +753,10 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
                         stageLogs={logs} errorStage={errorStage} />
             </div>
           </div>
-          <div className="mp-pane mp-pane--console">
-            <LogConsole logs={logs} />
+          <div className={`mp-pane mp-pane--console ${consoleCollapsed ? "is-collapsed" : ""}`}>
+            <LogConsole logs={logs}
+                        collapsed={consoleCollapsed}
+                        onToggle={() => setConsoleCollapsed(c => !c)} />
           </div>
         </div>
         <div className="mp-col mp-col--trace">
