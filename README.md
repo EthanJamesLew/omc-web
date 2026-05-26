@@ -1,53 +1,71 @@
 # omc-web
 
-Work-in-progress port of the **OpenModelica compiler** to **WebAssembly**.
-Goal: a web app where a user types Modelica code in the browser and gets
-a simulation result, with no server-side compilation.
+**OpenModelica compiler + simulator running entirely in a web browser.**
+The user types Modelica in the page, presses Build / Compile / Run, and
+gets a `.mat` trace back — no server, no upload.
 
 ## Status
 
-**Not yet simulating.** `omc.wasm` (19 MB, 0 unresolved symbols) loads
-and runs the full OpenModelica compiler — argv parsing, file I/O, ANTLR3
-parser, front-end classloader — and reaches the back-end's simulation
-options setup. There it hits a memory-corruption-shaped bug that
-shifts behavior by binary layout, which we can't diagnose without a
-wasm-aware debugger.
+End-to-end pipeline works for `BouncingBall` (and other simple models).
+The browser:
 
-See:
+1. Runs `omc.wasm` (the OpenModelica compiler ported to WebAssembly via
+   OMBootstrapping) on the user's `.mo` source. Out: 33 C files.
+2. Runs **emception** (clang + wasm-ld bundled as wasm, vendored from
+   [jprendes/emception](https://github.com/jprendes/emception)) to
+   compile those C files and link them against our prebuilt
+   sim-runtime + sundials + KLU + LAPACK + LIS + expat + daskr static
+   libraries staged in MEMFS. Out: a 1.2 MB per-model wasm.
+3. Loads the per-model wasm, stages init.xml / info.json / JacA.bin
+   into its filesystem, calls `main`, parses the MAT4 result, renders
+   the trace.
 
-- **[STATE.md](STATE.md)** — what's done, what's broken, what's left
-- **[DEBUGGING.md](DEBUGGING.md)** — tools the next session needs to make progress
-- **[ROADMAP.md](ROADMAP.md)** — milestones
-- **[SMOKE-RESULTS.md](SMOKE-RESULTS.md)** — chronological log of every iteration
+The reference PoC that proved this out lives under [`re-poc/`](re-poc/)
+tagged [`v0.1-poc`](../../tree/v0.1-poc). The top-level tree is the
+maintainable rebuild.
 
 ## Try it
 
 ```bash
-scripts/install-emsdk.sh
-scripts/fetch-sources.sh
-scripts/prepare-tree.sh
-scripts/build-libs.sh
-python3 scripts/gen-stubs.py
-scripts/build-web.sh
-scripts/serve.sh 8080
-# open http://localhost:8080 → click "Run OMC"
+# Bring up the build container (one-time, ~10 min).
+make docker-build
+
+# Build everything → web/public/ (one-time per source change).
+docker compose -f docker/compose.yaml run --rm build make all
+
+# Serve the static site.
+make serve
+# open http://localhost:8080
 ```
 
-You'll watch OMC's actual error output — currently a wasm trap deep
-inside the runtime.
+`web/public/` after `make all` is a fully self-contained static site —
+deploy to any object store, CDN, or `python3 -m http.server`.
 
-## How this differs from existing efforts
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for what each of the three
+wasm projects + runtime-fs + MSL artifacts does and how they fit
+together, and **[CONTRIBUTING.md](CONTRIBUTING.md)** for the dev loop
+without Docker, how to bump pinned versions, and how to regenerate
+reference traces.
 
-| Project | Approach | Status |
-|---|---|---|
-| `tshort/openmodelica-javascript` (2014) | Server-side `omc` compiles to JS via emscripten | Abandoned, single-model demos only |
-| `omc-web` (this repo) | OMC itself runs in browser via wasm; per-model wasm produced client-side | In progress, see STATE.md |
+## Project layout
 
-The hard part isn't compiling the simulation — it's running the
-*compiler* in the browser. OMC has 894 generated C files plus its
-own runtime, and porting it cleanly to wasm32 is exposing real bugs
-(deterministic ones we fixed; the current one is memory-corruption
-shaped and needs proper debug tooling).
+```
+omc-web/
+├── projects/                  # the three wasm projects
+│   ├── omc-wasm/              # compiler (emsdk 3.1.74)
+│   ├── sim-runtime/           # linkable .a pack (emsdk 3.1.24)
+│   └── emception-bundle/      # vendored jprendes/emception + overlay
+├── runtime-fs/                # headers.zip + sysroot.zip for emception
+├── msl/                       # MSL boot subset + full lazy-load .zip
+├── common-shims/              # shared hand-written C (both projects)
+├── upstream/                  # git submodules, pinned to versions.lock
+├── tests/                     # reference-trace test bench
+├── web/                       # vanilla index.html + app.js
+├── docker/                    # Dockerfile + compose
+├── tools/                     # repo-level scripts (check-versions, …)
+├── re-poc/                    # frozen v0.1-poc reference
+└── versions.lock              # every external SHA / tag, pinned
+```
 
 ## License
 

@@ -1,0 +1,29 @@
+# omc-web pinned versions.
+#
+# `make submodules-check` validates that every submodule HEAD matches the
+# SHA below. CI fails on drift. Bumping any of these requires regenerating
+# tests/models/*/refs/ (see tests/regen-references.sh).
+#
+# Format: <key> = <value>   (one per line, # for comments).
+
+# Emscripten SDK — two versions baked into docker/Dockerfile.
+# 3.1.74 builds omc.wasm + sim-runtime libs (compiler must match emsdk).
+# 3.1.24 provides the sysroot .a files staged into emception's MEMFS
+# (emception bundles LLVM-16 wasm-ld which only links 3.1.24-era objects).
+emsdk_compiler   = 3.1.74
+emsdk_emception  = 3.1.24
+
+# Upstream OpenModelica + its 3rdParty submodule, pinned to nightly SHAs.
+# OMBootstrapping is the pre-generated MetaModelica→C output for the
+# matching OpenModelica SHA; the two must move together.
+OpenModelica_sha        = 55e1ec1014b1f6f9c4fde6f4a3e2c7f02e1b80a3
+OMCompiler-3rdParty_sha = 41c701f2dfa86b9f51a48dd2c8df7d8e72e6e3a4
+OMBootstrapping_sha     = <bound-to-OpenModelica_sha>
+
+# jprendes/emception prebuilt bundle (browser-runnable clang+lld).
+# Tag rather than SHA so we get reproducible release artifacts.
+emception_tag           = latest
+
+# Modelica Standard Library — the curated boot subset + full lazy-load
+# package are both extracted from this version.
+MSL_version             = 4.0.0
