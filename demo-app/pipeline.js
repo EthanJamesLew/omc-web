@@ -79,17 +79,15 @@ const COMPILE_DEFS = [
 // ─── pipeline state ──────────────────────────────────────────────────────────
 
 let omcReady   = false;
-let omcSink    = null;       // current log sink for omc.js Module.print
 let emcePromise = null;
 let emceStaged = false;
 
-// Intercept omc.js Module.print as early as we can. index.html sets up
-// window.Module with a buffering print before omc.js loads; once this module
-// boots we replace those with sink-routed handlers.
-function wireOmcModule() {
-  if (!window.Module) return;
-  window.Module.print    = (t) => omcSink ? omcSink("info", t) : window.__omcweb?.out?.push(t + "\n");
-  window.Module.printErr = (t) => omcSink ? omcSink("err",  t) : window.__omcweb?.out?.push("[err] " + t + "\n");
+// Emscripten captured Module["print"]/Module["printErr"] into local closures
+// at init time, so we can't swap them after the fact. index.html's print
+// implementations dispatch through window.__omcweb.sink — to route OMC output
+// for a given pipeline stage, we just swap that pointer.
+function setOmcSink(sink) {
+  if (window.__omcweb) window.__omcweb.sink = sink;
 }
 
 function whenOmcReady() {
@@ -114,7 +112,7 @@ function splitOmcArgs(s) {
 }
 
 async function callOMC(src, omcArgs, sink) {
-  omcSink = sink;
+  setOmcSink(sink);
   try {
     const FS = window.Module.FS;
     FS.writeFile("/X.mo", src);
@@ -129,11 +127,15 @@ async function callOMC(src, omcArgs, sink) {
 
     const argv = [...splitOmcArgs(omcArgs), "/X.mo"];
     sink("cmd", "$ omc " + argv.join(" "));
+    let exitCode = null;
     try {
-      const ret = window.Module.callMain(argv);
-      sink("info", "omc returned " + ret);
+      exitCode = window.Module.callMain(argv);
     } catch (e) {
-      if (e && e.name !== "ExitStatus") throw e;
+      if (e && e.name === "ExitStatus") {
+        exitCode = e.status;
+      } else {
+        throw e;
+      }
     }
 
     // Collect every file omc produced.
@@ -152,12 +154,21 @@ async function callOMC(src, omcArgs, sink) {
 
     const nC = Object.keys(files).filter(n => n.endsWith(".c")).length;
     if (nC === 0 || !modelName) {
-      throw new Error("omc produced no usable output (need .c files + .makefile)");
+      // Surface omc's exit code so the user can tell parse-fail from
+      // produced-nothing — actual error text already streamed through `sink`
+      // via Module.printErr.
+      const hint = exitCode !== 0 && exitCode != null
+        ? `omc exited with status ${exitCode} — see error output above`
+        : `omc exited 0 but produced no .c files / makefile`;
+      throw new Error(hint);
+    }
+    if (exitCode !== 0 && exitCode != null) {
+      sink("warn", `omc exited with non-zero status ${exitCode} (but emitted ${nC} .c files — continuing)`);
     }
     sink("ok", `generated ${Object.keys(files).length} files (${nC} .c), model=${modelName}`);
     return { files, modelName };
   } finally {
-    omcSink = null;
+    setOmcSink(null);
   }
 }
 
@@ -527,8 +538,6 @@ async function runFull(src, opts, hooks) {
 }
 
 // ─── expose ──────────────────────────────────────────────────────────────────
-
-wireOmcModule();
 
 window.OMCPipeline = {
   whenOmcReady,

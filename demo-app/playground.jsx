@@ -598,6 +598,12 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
 
   const canRun = pipeReady && omcReady;
 
+  // Tracks the stage currently in-flight so the catch handler can attribute
+  // a failure to it. Using state (or reading `progress` from the closure)
+  // would read stale values — useCallback captures whatever progress was at
+  // memoization time, not the live state during the async run.
+  const currentStageRef = useRef(0);
+
   const run = useCallback(async () => {
     if (!canRun) return;
     setRunning(true);
@@ -608,10 +614,14 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
     setLogs([]);
     setErrorStage(null);
     setTrace(null);
+    currentStageRef.current = 0;
 
     const hooks = {
       onLog: (entry) => setLogs(l => [...l, entry]),
-      onStageStart: (i) => setProgress(i + 0.5),
+      onStageStart: (i) => {
+        currentStageRef.current = i;
+        setProgress(i + 0.5);
+      },
       onStageDone: (i, art, durMs) => {
         setProgress(i + 1);
         setStageArtifacts(a => ({ ...a, [window.STAGES[i].id]: art }));
@@ -625,15 +635,14 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
       setModelName(mn);
       setExpanded("sim");
     } catch (e) {
-      // Tag the current stage as error.
-      const stageIdx = Math.floor(progress > 0 ? progress : 0);
+      const stageIdx = currentStageRef.current;
       setErrorStage(stageIdx);
       setExpanded(window.STAGES[stageIdx]?.id || null);
       setLogs(l => [...l, { t: stamp(), level: "err", msg: e.message || String(e), stage: window.STAGES[stageIdx]?.id || "parse" }]);
     } finally {
       setRunning(false);
     }
-  }, [src, solver, stopTime, stepSize, omcArgs, canRun, progress]);
+  }, [src, solver, stopTime, stepSize, omcArgs, canRun]);
 
   const reset = useCallback(() => {
     setProgress(0);

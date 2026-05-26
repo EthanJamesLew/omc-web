@@ -588,6 +588,12 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
 .mp-art:hover .mp-art-dl { color: var(--ink); }
 
 /* ─── log console ──────────────────────────────────────────────────────── */
+.mp-console {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .mp-console-body {
   flex: 1 1 auto;
   min-height: 0;

@@ -12,14 +12,24 @@
   <link rel="stylesheet" href="style.css" />
 
   <!-- omc.js's first line is `var Module = typeof Module != "undefined" ? Module : {};`
-       so we install our Module object BEFORE that script tag runs. The pipeline module
-       (loaded after omc.js) will replace Module.print/printErr to route through its sink. -->
+       so we install our Module object BEFORE that script tag runs.
+       Note: emscripten captures Module["print"]/Module["printErr"] into local vars
+       at init time (`var out = Module["print"] || console.log`). Replacing those
+       references later is ineffective. Instead, the print/printErr functions read
+       window.__omcweb.sink on EACH call — pipeline.js just swaps the sink pointer
+       per stage so we can attribute output to the right pipeline phase. -->
   <script>
-    window.__omcweb = { out: [], ready: false, err: null };
+    window.__omcweb = { out: [], ready: false, err: null, sink: null };
     window.Module = {
       noInitialRun: true,
-      print:    (t) => window.__omcweb.out.push(t + "\n"),
-      printErr: (t) => window.__omcweb.out.push("[err] " + t + "\n"),
+      print: (t) => {
+        if (window.__omcweb.sink) window.__omcweb.sink("info", t);
+        else window.__omcweb.out.push(t + "\n");
+      },
+      printErr: (t) => {
+        if (window.__omcweb.sink) window.__omcweb.sink("err", t);
+        else window.__omcweb.out.push("[err] " + t + "\n");
+      },
       onRuntimeInitialized: () => {
         window.__omcweb.ready = true;
         if (window.__omcweb.onReady) window.__omcweb.onReady();
