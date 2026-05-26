@@ -1,0 +1,14 @@
+# Large binary build artifacts are tracked via Git LFS.
+#
+# Patterns:
+#   *.wasm  the OMC compiler + sim wasms + emception's bundled clang/wasm-ld
+#   *.data  emscripten preload data files
+#   *.a     prebuilt static libs (sundials, klu, lapack, libc++, …)
+#   *.br    emception's brotli-compressed asset blob (~22 MB)
+#
+# To clone with the actual binaries, the consumer needs git-lfs installed.
+# CI uses `actions/checkout@v4` with `lfs: true`.
+*.wasm filter=lfs diff=lfs merge=lfs -text
+*.data filter=lfs diff=lfs merge=lfs -text
+*.a    filter=lfs diff=lfs merge=lfs -text
+*.br   filter=lfs diff=lfs merge=lfs -text

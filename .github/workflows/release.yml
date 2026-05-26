@@ -1,0 +1,46 @@
+name: Upload OMC wasm to release
+
+# Fires when a release is published whose tag matches v* (e.g. v0.1.0,
+# v0.2.0-rc1). We attach the prebuilt omc.{wasm,js,data} from demo-app/
+# — these are LFS-tracked so the checkout needs `lfs: true`.
+#
+# Triggering only on `release: published` (not on raw tag pushes) means the
+# release object already exists in GitHub by the time this job runs, so
+# softprops/action-gh-release can attach files to it cleanly.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  upload-wasm:
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Sanity-check the assets are present (not LFS pointers)
+        run: |
+          set -e
+          for f in demo-app/omc.wasm demo-app/omc.js demo-app/omc.data; do
+            if [ ! -s "$f" ]; then echo "missing: $f"; exit 1; fi
+            head -c 64 "$f" | grep -q "version https://git-lfs" \
+              && { echo "LFS pointer still present in $f — checkout did not smudge"; exit 1; } \
+              || true
+          done
+          ls -la demo-app/omc.{wasm,js,data}
+
+      - name: Attach omc.{wasm,js,data} to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: |
+            demo-app/omc.wasm
+            demo-app/omc.js
+            demo-app/omc.data
+          fail_on_unmatched_files: true

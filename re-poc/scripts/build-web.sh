@@ -6,7 +6,9 @@
 #   - EXPORTED_RUNTIME_METHODS includes callMain + FS + UTF8ToString.
 #   - ENVIRONMENT=web,worker (drop node-specific code).
 #
-# Output is placed in web/ next to index.html.
+# Output is placed in ../demo-app/ next to the playground's index.html so
+# the polished site picks up the new wasm immediately. The wasm + .data are
+# tracked via Git LFS (see demo-app/.gitattributes).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . emsdk/emsdk_env.sh > /dev/null 2>&1
@@ -108,9 +110,9 @@ emcc "${OPT_FLAGS[@]}" \
   -s ERROR_ON_UNDEFINED_SYMBOLS=1 \
   -s EMULATE_FUNCTION_POINTER_CASTS=1 \
   -s BINARYEN_EXTRA_PASSES=--pass-arg=max-func-params@64 \
-  -o web/omc.js
+  -o ../demo-app/omc.js
 
 # Drop the .data file too in case --preload-file is added later.
-ls -la web/omc.js web/omc.wasm 2>/dev/null
-size_wasm=$(stat -c%s web/omc.wasm 2>/dev/null || stat -f%z web/omc.wasm)
-echo "web/omc.wasm = $size_wasm bytes ($((size_wasm / 1024 / 1024)) MB)"
+ls -la ../demo-app/omc.js ../demo-app/omc.wasm 2>/dev/null
+size_wasm=$(stat -c%s ../demo-app/omc.wasm 2>/dev/null || stat -f%z ../demo-app/omc.wasm)
+echo "demo-app/omc.wasm = $size_wasm bytes ($((size_wasm / 1024 / 1024)) MB)"

@@ -1,0 +1,57 @@
+name: Deploy demo-app to GitHub Pages
+
+# Trigger on every push to main + on demand. We deploy the contents of
+# demo-app/ — the binaries are pulled via Git LFS so the runner needs
+# `lfs: true` on checkout.
+on:
+  push:
+    branches: [main]
+    paths:
+      - demo-app/**
+      - .github/workflows/deploy.yml
+  workflow_dispatch:
+
+# GitHub Pages permissions — required by actions/deploy-pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one in-flight deploy; queue subsequent pushes so we don't race.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `lfs: true` makes checkout smudge LFS pointers into real bytes.
+          # `fetch-depth: 0` gives gen-version.sh access to tags so the
+          # footer can show the tag name when HEAD is exactly on one.
+          lfs: true
+          fetch-depth: 0
+
+      - name: Generate version.js
+        run: ./demo-app/gen-version.sh
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload demo-app/ as the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: demo-app
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

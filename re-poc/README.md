@@ -17,11 +17,12 @@ Why keep it:
   start from that forensic record.
 - The PoC's `web/omc.wasm`, `web/emception/`, `web/emscripten-libs/`,
   `web/headers/`, `web/model-bundle/` were committed as part of the
-  v0.1-poc snapshot. They're now under `re-poc/web/` and let anyone
-  serve the original demo with no rebuild needed:
+  v0.1-poc snapshot. They have since moved to the top-level
+  [`demo-app/`](../demo-app/) (Git LFS for the binaries) where they
+  power the polished React playground. The v0.1-poc tag still has the
+  original `re-poc/web/` tree if you want to compare.
 
-      cd re-poc/web && python3 -m http.server 8080
-      # open http://localhost:8080 → Build → Compile → Run
+      demo-app/serve.sh           # http://localhost:8080
 
 What's here:
 
@@ -33,7 +34,7 @@ re-poc/
 │                   at the top level — re-poc/src/ is a copy)
 ├── patches/        in-tree patches the PoC applied (now reorganised
 │                   under projects/*/patches/)
-├── web/            the PoC's self-contained static site, runnable as-is
+│                   (web/ has moved to top-level demo-app/ — see above)
 ├── STATE.md        forensic notes on what works, what's broken
 ├── DEBUGGING.md    tools and approaches for the open omc.wasm bug
 ├── SMOKE-RESULTS.md chronological log of every spelunking iteration

@@ -9,15 +9,15 @@
 // can't be overridden after init (emscripten captures them once via
 // `var out = Module["print"] || console.log`), so OMC's output here
 // goes to real stdout/stderr instead of being captured — that's fine
-// for a smoke test. In the browser (web/index.html + web/app.js),
+// for a smoke test. In the browser (demo-app/index.html + pipeline.js),
 // window.Module is set before <script src="omc.js"> evaluates, which
 // works because there's no CJS scoping in the page.
 //
-//   node scripts/smoke-web.js
+//   node re-poc/scripts/smoke-web.js
 const fs   = require("node:fs");
 const path = require("node:path");
 
-const webDir = path.join(__dirname, "..", "web");
+const webDir = path.join(__dirname, "..", "..", "demo-app");
 const Module = require(path.join(webDir, "omc.js"));
 
 const src = fs.readFileSync(

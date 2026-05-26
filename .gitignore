@@ -16,18 +16,26 @@ web/public/
 tests/runners/browser/node_modules/
 tests/runners/node/node_modules/
 
-# Old PoC assets (moved into re-poc/web/) — keep tracked so the frozen
-# reference at v0.1-poc remains runnable.
-!re-poc/web/omc.wasm
-!re-poc/web/emscripten-libs/
-!re-poc/web/emscripten-libs/*.a
-!re-poc/web/model-bundle/
-!re-poc/web/model-bundle/libs/*.a
-!re-poc/web/model-bundle/objs/*.o
+# PoC build artifacts are now committed under demo-app/ (via Git LFS for
+# *.wasm/*.data/*.a/*.br — see demo-app/.gitattributes). The patterns above
+# (build/, *.o, *.a, *.bc, *.js.map) ignore re-poc/scripts/build-* outputs
+# in the working tree, so override them inside demo-app/ here.
+!demo-app/omc.wasm
+!demo-app/omc.data
+!demo-app/emscripten-libs/
+!demo-app/emscripten-libs/*.a
+!demo-app/model-bundle/
+!demo-app/model-bundle/libs/*.a
+!demo-app/model-bundle/objs/*.o
+!demo-app/models/
+!demo-app/models/**/*.wasm
+!demo-app/emception/
+!demo-app/emception/*.wasm
+!demo-app/emception/*.br
 
 # The repo-root .gitignore ignores `*.mo` (for gettext translations).
 # Our `.mo` files are Modelica source — track them.
 !**/*.mo
 
 # version.js is regenerated from git state on every serve/deploy.
-re-poc/web/version.js
+demo-app/version.js
