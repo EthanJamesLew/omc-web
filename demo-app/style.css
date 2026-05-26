@@ -127,7 +127,47 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
 .mp-logo > span:first-of-type { color: var(--ink); font-weight: 600; }
 .mp-sep  { color: var(--muted); }
 .mp-path { color: var(--sub); }
+.mp-path--btn {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.mp-path--btn:hover { background: var(--hair2); color: var(--ink); }
 .mp-file { color: var(--ink); font-weight: 500; }
+
+/* Examples popover (under the breadcrumb). */
+.mp-popover--examples {
+  min-width: 320px;
+  padding: 4px;
+  left: 0;
+}
+.mp-example {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.mp-example:hover     { background: var(--hair2); }
+.mp-example.is-active { background: color-mix(in oklab, var(--accent) 8%, var(--panel)); }
+.mp-example-head {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+}
+.mp-example-name { color: var(--ink); font-weight: 500; }
+.mp-example-desc {
+  font-size: 10.5px;
+  color: var(--sub);
+}
+.mp-pill--warn-soft {
+  color: var(--warn);
+  border-color: color-mix(in oklab, var(--warn) 30%, var(--hair));
+  background: color-mix(in oklab, var(--warn) 10%, var(--panel));
+}
 
 .mp-target {
   display: flex;
@@ -409,9 +449,9 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
   font-size: 12.5px;
   line-height: 1.65;
   letter-spacing: 0;
-  white-space: pre;
-  word-break: normal;
-  overflow-wrap: normal;
+  white-space: pre-wrap;          /* wrap long lines instead of horizontal scroll */
+  word-break: break-word;
+  overflow-wrap: anywhere;        /* break unbroken tokens (paths, identifiers) */
   tab-size: 2;
   padding: 14px 16px 24px 14px;
   border: 0;
@@ -616,15 +656,14 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
   font-family: 'JetBrains Mono', monospace;
   line-height: 1.55;
   color: var(--sub);
-  white-space: pre;
-  overflow: hidden;
+  align-items: start;
 }
 .mp-log-row:hover { background: color-mix(in oklab, var(--ink) 4%, transparent); }
 .mp-stage-log .mp-log-row { grid-template-columns: 84px 38px 1fr; padding: 1px 0; }
-.mp-log-t     { color: var(--muted); }
-.mp-log-lvl   { color: var(--muted); text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.05em; padding-top: 2px; }
-.mp-log-msg   { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
-.mp-log-stage { color: var(--muted); font-size: 10px; }
+.mp-log-t     { color: var(--muted); white-space: nowrap; }
+.mp-log-lvl   { color: var(--muted); text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.05em; padding-top: 2px; white-space: nowrap; }
+.mp-log-msg   { color: var(--ink); white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; min-width: 0; }
+.mp-log-stage { color: var(--muted); font-size: 10px; white-space: nowrap; align-self: start; padding-top: 1px; }
 .mp-log-row--ok    .mp-log-lvl { color: var(--ok); }
 .mp-log-row--event .mp-log-lvl { color: var(--accent); }
 .mp-log-row--event .mp-log-msg { color: var(--ink); font-weight: 500; }

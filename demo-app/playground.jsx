@@ -79,13 +79,17 @@ window.Topbar = function Topbar({
   running, onRun, onReset, status, statusLabel,
   modelName, omcArgs, setOmcArgs, solver, setSolver,
   stopTime, setStopTime, stepSize, setStepSize, canRun,
+  exampleName, onPickExample,
 }) {
+  const [examplesOpen, setExamplesOpen] = useState(false);
   const [omcOpen, setOmcOpen] = useState(false);
   const [solverOpen, setSolverOpen] = useState(false);
+  const examplesRef = useRef(null);
   const omcRef = useRef(null);
   const solverRef = useRef(null);
   useEffect(() => {
     const handler = (e) => {
+      if (examplesRef.current && !examplesRef.current.contains(e.target)) setExamplesOpen(false);
       if (omcRef.current    && !omcRef.current.contains(e.target))    setOmcOpen(false);
       if (solverRef.current && !solverRef.current.contains(e.target)) setSolverOpen(false);
     };
@@ -96,6 +100,7 @@ window.Topbar = function Topbar({
   // Trim the OMC arg string to one line of preview text so it doesn't blow
   // out the pill width.
   const omcPreview = omcArgs.length > 28 ? omcArgs.slice(0, 26) + "…" : omcArgs;
+  const displayName = exampleName || (modelName ? modelName + ".mo" : "BouncingBall.mo");
 
   return (
     <div className="mp-topbar">
@@ -106,9 +111,28 @@ window.Topbar = function Topbar({
           </svg>
           <span>ωmc</span>
           <span className="mp-sep">/</span>
-          <span className="mp-path">examples</span>
+          <span className="mp-path mp-path--btn" ref={examplesRef}
+                onClick={() => setExamplesOpen(o => !o)}>
+            examples
+            <Icon name="chevrond" size={10} />
+            {examplesOpen && (
+              <div className="mp-popover mp-popover--examples" onClick={(e) => e.stopPropagation()}>
+                {(window.EXAMPLES || []).map(ex => (
+                  <div key={ex.id}
+                       className={`mp-example ${displayName === ex.name ? "is-active" : ""}`}
+                       onClick={() => { onPickExample && onPickExample(ex); setExamplesOpen(false); }}>
+                    <div className="mp-example-head">
+                      <span className="mp-example-name">{ex.name}</span>
+                      {ex.needsMSL && <span className="mp-pill mp-pill--warn-soft">needs MSL</span>}
+                    </div>
+                    <div className="mp-example-desc">{ex.description}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </span>
           <span className="mp-sep">/</span>
-          <span className="mp-file">{modelName || "BouncingBall"}.mo</span>
+          <span className="mp-file">{displayName}</span>
         </div>
       </div>
       <div className="mp-topbar-center">
@@ -249,7 +273,7 @@ window.CodeEditor = function CodeEditor({ src, setSrc, filename = "BouncingBall.
             spellCheck={false}
             autoCorrect="off"
             autoCapitalize="off"
-            wrap="off"
+            wrap="soft"
           />
         </div>
       </div>
@@ -590,11 +614,27 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
   const [omcReady, setOmcReady] = useState(false);
   const [pipeReady, setPipeReady] = useState(!!window.OMCPipeline);
 
+  const [exampleId, setExampleId] = useState(() => (window.EXAMPLES || [])[0]?.id);
   const [omcArgs, setOmcArgs]   = useState("+s --matchingAlgorithm=BFSB");
   const [solver, setSolver]     = useState("rungekutta");
   const [stopTime, setStopTime] = useState(3.2);
   const [stepSize, setStepSize] = useState(0.01);
   const [consoleCollapsed, setConsoleCollapsed] = useState(true);
+
+  const currentExample = (window.EXAMPLES || []).find(e => e.id === exampleId);
+  const pickExample = useCallback((ex) => {
+    setExampleId(ex.id);
+    setSrc(ex.source);
+    // Reset run state so the editor swap doesn't leave stale stage results.
+    setProgress(0);
+    setStageDurations([null, null, null, null]);
+    setStageArtifacts({});
+    setLogs([]);
+    setErrorStage(null);
+    setTrace(null);
+    setExpanded(null);
+    setModelName(null);
+  }, []);
 
   // When a run fails, auto-expand the build output so the error lines are
   // immediately visible without the user having to click.
@@ -702,13 +742,15 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
                    : "idle";
 
   const matArt = stageArtifacts.sim;
-  const fname  = (modelName || "BouncingBall") + ".mo";
+  const fname  = currentExample?.name || (modelName ? modelName + ".mo" : "Untitled.mo");
 
   const sharedTopbar = (
     <Topbar
       running={running} onRun={run} onReset={reset}
       status={status} statusLabel={statusLabel}
       modelName={modelName}
+      exampleName={currentExample?.name}
+      onPickExample={pickExample}
       omcArgs={omcArgs} setOmcArgs={setOmcArgs}
       solver={solver} setSolver={setSolver}
       stopTime={stopTime} setStopTime={setStopTime}
@@ -933,7 +975,7 @@ function CodeEditorEmbed({ src, setSrc }) {
           spellCheck={false}
           autoCorrect="off"
           autoCapitalize="off"
-          wrap="off"
+          wrap="soft"
         />
       </div>
     </>
