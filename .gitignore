@@ -28,3 +28,6 @@ tests/runners/node/node_modules/
 # The repo-root .gitignore ignores `*.mo` (for gettext translations).
 # Our `.mo` files are Modelica source — track them.
 !**/*.mo
+
+# version.js is regenerated from git state on every serve/deploy.
+re-poc/web/version.js
