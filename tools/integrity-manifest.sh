@@ -19,9 +19,7 @@ first=1
 # Track only the deployable artifacts, not transient files. Order matters
 # for stable diffs.
 for f in omc.wasm omc.js omc.data \
-         runtime-fs/headers.zip runtime-fs/sysroot.zip \
-         headers.zip sysroot.zip \
-         msl-boot.zip msl-full.zip; do
+         runtime-fs.zip msl-boot.zip msl-full.zip; do
   [ -f "$f" ] || continue
   [ $first -eq 1 ] || printf ',\n'
   printf '  "%s": "%s"' "$f" "$(sri "$f")"

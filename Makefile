@@ -67,8 +67,7 @@ stage: omc-wasm sim-runtime emception-bundle runtime-fs msl ## Copy all artifact
 	mkdir -p web/public
 	cp projects/omc-wasm/out/omc.* web/public/
 	cp -r projects/emception-bundle/out web/public/emception
-	cp runtime-fs/out/headers.zip web/public/
-	cp runtime-fs/out/sysroot.zip web/public/
+	cp runtime-fs/out/runtime-fs.zip web/public/
 	cp msl/out/msl-boot.zip web/public/
 	cp msl/out/msl-full.zip web/public/
 	cp -r web/src/. web/public/
