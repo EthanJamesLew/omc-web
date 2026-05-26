@@ -18,51 +18,55 @@ BUILD_DIR      := $(CURDIR)/build
 OUT_DIR        := $(CURDIR)/out
 LIBS_OUT       := $(OUT_DIR)/libs
 
-# emsdk activation. EMSDK_DIR can be overridden externally (Docker
-# pre-sets it to /opt/emsdk/3.1.24). Export so child scripts see it.
-EMSDK_DIR     ?= $(REPO_ROOT)/emsdk
-EMSDK_ENV     := . $(EMSDK_DIR)/emsdk_env.sh > /dev/null 2>&1
-export EMSDK_DIR
-export SHIMS_DIR
-export OMC_ROOT
-export THIRDPARTY
-export BUILD_DIR
+# This project requires emsdk 3.1.24 — emception bundles LLVM-16 wasm-ld
+# which can't link clang-17+ objects. The use-emsdk step (run before
+# every compile recipe) auto-switches the shared emsdk/ dir if a
+# different version is active. In Docker, EMSDK_DIR is overridden to
+# /opt/emsdk/3.1.24 and use-emsdk is a no-op.
+EMSDK_VERSION := 3.1.24
+EMSDK_DIR    ?= $(REPO_ROOT)/emsdk
+EMSDK_ENV    := . $(EMSDK_DIR)/emsdk_env.sh > /dev/null 2>&1
+USE_EMSDK    := $(REPO_ROOT)/tools/use-emsdk.sh $(EMSDK_VERSION)
+export EMSDK_DIR SHIMS_DIR OMC_ROOT THIRDPARTY BUILD_DIR
 
 DEPS = sundials suitesparse lapack lis expat daskr
 
-.PHONY: all clean $(DEPS) simrt stage gc-stub
+.PHONY: all clean $(DEPS) simrt stage gc-stub use-emsdk
 
 all: stage
+
+use-emsdk:
+	@$(USE_EMSDK)
 
 # ---- third-party deps -------------------------------------------------
 # sundials configures with KLU + LAPACK, so it needs those built first.
 
-sundials: suitesparse lapack
+sundials: use-emsdk suitesparse lapack
 	bash scripts/build-sundials.sh
 
-suitesparse:
+suitesparse: use-emsdk
 	bash scripts/build-suitesparse.sh
 
-lapack:
+lapack: use-emsdk
 	bash scripts/build-lapack.sh
 
-lis:
+lis: use-emsdk
 	bash scripts/build-lis.sh
 
-expat:
+expat: use-emsdk
 	bash scripts/build-expat.sh
 
-daskr:
+daskr: use-emsdk
 	bash scripts/build-daskr.sh
 
 # ---- main sim-runtime library ----------------------------------------
 
-simrt: $(DEPS)
+simrt: use-emsdk $(DEPS)
 	bash scripts/build-simrt.sh
 
 # ---- gc stub object (linked into per-model wasm) ---------------------
 
-gc-stub:
+gc-stub: use-emsdk
 	mkdir -p $(BUILD_DIR)
 	$(EMSDK_ENV) && emcc -c -O2 -w \
 	  $(SHIMS_DIR)/omcweb_gc_stub.c \

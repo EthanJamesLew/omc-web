@@ -19,10 +19,28 @@ SIM_LIBS   := $(REPO_ROOT)/projects/sim-runtime/out/libs
 BUILD_DIR  := $(CURDIR)/build
 OUT_DIR    := $(CURDIR)/out
 
-EMSDK_DIR  ?= $(REPO_ROOT)/emsdk
-SYSROOT    := $(EMSDK_DIR)/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten
+# Requires emsdk 3.1.24 — the sysroot .a files we copy must match the
+# clang/wasm-ld baked into emception. use-emsdk auto-switches the shared
+# emsdk/ dir if a different version is active.
+EMSDK_VERSION := 3.1.24
+EMSDK_DIR    ?= $(REPO_ROOT)/emsdk
+SYSROOT      := $(EMSDK_DIR)/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten
+USE_EMSDK    := $(REPO_ROOT)/tools/use-emsdk.sh $(EMSDK_VERSION)
 
-.PHONY: all clean headers sysroot zip
+.PHONY: all clean headers sysroot zip use-emsdk
+
+use-emsdk:
+	@$(USE_EMSDK)
+	@# After fresh emsdk install the cache is empty — embuilder hasn't
+	@# populated libc.a etc. yet. Trigger it with a trivial compile
+	@# only if libc.a is missing (fast path otherwise).
+	@if [ ! -f $(SYSROOT)/libc.a ]; then \
+	  echo "[runtime-fs] priming emsdk sysroot cache…"; \
+	  mkdir -p $(BUILD_DIR); \
+	  echo 'int main(){return 0;}' > $(BUILD_DIR)/sm.c; \
+	  . $(EMSDK_DIR)/emsdk_env.sh > /dev/null 2>&1 && \
+	    emcc -O2 $(BUILD_DIR)/sm.c -o $(BUILD_DIR)/sm.wasm > /dev/null 2>&1 || true; \
+	fi
 
 all: zip
 
@@ -46,7 +64,7 @@ headers:
 	cp $(SHIMS_DIR)/*.h $(BUILD_DIR)/headers/omcweb/
 	@echo "==> headers staged: $$(find $(BUILD_DIR)/headers -name '*.h' | wc -l) .h files"
 
-sysroot:
+sysroot: use-emsdk
 	rm -rf $(BUILD_DIR)/sysroot
 	mkdir -p $(BUILD_DIR)/sysroot
 	# 11 sysroot .a's from emsdk 3.1.24
