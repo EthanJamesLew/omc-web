@@ -1,0 +1,24 @@
+# Modelica.* packages included in msl-boot.zip — the lightweight subset
+# preloaded into omc.wasm's MEMFS so simple demos work without lazy fetch.
+#
+# Format: one entry per line, relative to upstream/MSL/Modelica/.
+# Entries can be files (foo.mo) or directories (Bar/).
+# Lines starting with # are comments.
+#
+# Strategy: include the most-used building blocks for textbook ODE/DAE
+# demos. Anything outside this list is fetched on demand from
+# msl-full.zip (see web/src/app.js).
+
+Icons.mo
+Constants.mo
+ComplexMath.mo
+
+Math
+Units
+SIunits.mo
+
+Blocks
+Mechanics
+Electrical/Analog
+
+ObsoleteModelica4.mo

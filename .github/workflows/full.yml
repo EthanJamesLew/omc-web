@@ -1,0 +1,35 @@
+name: full
+on:
+  schedule: [{ cron: "0 4 * * *" }]      # 04:00 UTC daily
+  push: { tags: ["v*"] }
+  workflow_dispatch:
+jobs:
+  full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - name: Submodule drift check
+        run: tools/check-versions.sh
+      - name: Docker build (clean, no cache)
+        run: |
+          docker build --no-cache -f docker/Dockerfile -t omc-web/build:full docker
+      - name: make all (clean Docker)
+        run: |
+          docker run --rm -v $PWD:/work omc-web/build:full \
+            bash -lc "make clean && make all"
+      - name: Playwright tests (Chrome + Firefox)
+        run: |
+          docker run --rm -v $PWD:/work -p 8080:8080 omc-web/build:full \
+            bash -lc "make stage && cd tests/runners/browser && npm i && npx playwright install --with-deps && npx playwright test"
+      - name: Publish artifacts on tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            web/public/omc.wasm
+            web/public/runtime-fs.zip
+            web/public/msl-boot.zip
+            web/public/msl-full.zip
+            web/public/integrity.json

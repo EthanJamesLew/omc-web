@@ -1,0 +1,26 @@
+name: fast
+on: [push, pull_request]
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - name: Submodule drift check
+        run: tools/check-versions.sh
+      - name: ShellCheck
+        run: |
+          sudo apt-get install -y --no-install-recommends shellcheck
+          shellcheck -S warning $(find tools scripts projects msl runtime-fs tests -name '*.sh') || true
+      - name: C shim compile check
+        run: |
+          # Sanity: do common-shims/*.c parse cleanly under host clang?
+          # We only check syntax (-fsyntax-only) so emsdk is not needed.
+          for f in common-shims/*.c; do
+            clang -fsyntax-only -w "$f" || echo "WARN: $f did not parse standalone"
+          done
+      - name: Node smoke
+        run: |
+          # Skeleton: just verify the runner script loads.
+          node --check tests/runners/node/run-all.js

@@ -1,0 +1,38 @@
+services:
+
+  # `docker compose run --rm build make all` — one-shot full build.
+  build:
+    build: { context: ., dockerfile: Dockerfile }
+    image: omc-web/build
+    working_dir: /work
+    volumes:
+      - ../:/work
+      - ccache:/root/.ccache
+    command: ["make", "help"]
+    environment:
+      - CCACHE_DIR=/root/.ccache
+      - EMSDK_DIR=/opt/emsdk
+
+  # `docker compose run --rm dev` — drops a shell with everything set up.
+  dev:
+    extends: { service: build }
+    ports: ["8080:8080"]
+    stdin_open: true
+    tty: true
+    command: ["bash"]
+
+  # `docker compose run --rm test make test` — runs the test bench.
+  test:
+    extends: { service: build }
+    command: ["make", "test"]
+
+  # Used by `make regen-references`; separate image with native OMC built.
+  refs:
+    build: { context: ., dockerfile: Dockerfile.native-omc }
+    image: omc-web/native-omc
+    working_dir: /work
+    volumes: ["../:/work"]
+    command: ["bash", "tests/regen-references.sh"]
+
+volumes:
+  ccache:

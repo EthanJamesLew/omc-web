@@ -1,0 +1,5 @@
+{
+  "_note": "SHA of upstream/OpenModelica at the moment the references in tests/models/*/refs/ were generated. CI fails if upstream/OpenModelica moves without a corresponding `make regen-references` commit that updates this file.",
+  "OpenModelica_sha": "55e1ec10488b34c01154715f76f6a0a92e4b6e97",
+  "_status": "NOT YET REGENERATED — refs/*.mat are empty placeholders. Run `make regen-references` (requires docker/Dockerfile.native-omc) before the first CI tier-3 run."
+}

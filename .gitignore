@@ -8,6 +8,14 @@ emsdk/
 # Note: upstream/ used to be ignored when it held loose clones.
 # It is now populated by git submodules (see .gitmodules + versions.lock).
 
+# New-tree build outputs — never committed; `make all` regenerates.
+projects/*/out/
+runtime-fs/out/
+msl/out/
+web/public/
+tests/runners/browser/node_modules/
+tests/runners/node/node_modules/
+
 # Don't ignore the built wasm: it lives in web/ so the static site is
 # self-contained when checked out. The build script regenerates it.
 !web/omc.wasm

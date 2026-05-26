@@ -1,0 +1,40 @@
+name: standard
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  standard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - name: Docker build (cached)
+        uses: docker/build-push-action@v5
+        with:
+          context: docker
+          file: docker/Dockerfile
+          load: true
+          tags: omc-web/build:latest
+          cache-from: type=gha,scope=build
+          cache-to: type=gha,scope=build,mode=max
+      - name: ccache restore
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('versions.lock', 'common-shims/**') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+      - name: make all
+        run: |
+          docker run --rm -v $PWD:/work -v $PWD/.ccache:/root/.ccache \
+            omc-web/build:latest make all
+      - name: make test (Node tier — subset)
+        run: |
+          docker run --rm -v $PWD:/work omc-web/build:latest \
+            make test
+      - name: upload web/public artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-public
+          path: web/public/

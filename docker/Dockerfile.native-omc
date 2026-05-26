@@ -1,0 +1,26 @@
+# docker/Dockerfile.native-omc — image used ONLY by `make regen-references`.
+# Builds OpenModelica natively (apt 3rd-party + 1 cmake of upstream/OpenModelica
+# at the pinned SHA) so we can run the canonical solvers against the test
+# models and capture reference .mat files. Heavy (~30 min build, ~3 GB image),
+# so it's separate from the everyday build image.
+
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential ca-certificates ccache cmake curl git \
+      gfortran libomc-dev libsundials-dev libsuitesparse-dev liblapack-dev \
+      libblas-dev libexpat1-dev libreadline-dev libxml2-dev \
+      libssl-dev libffi-dev libncurses-dev libtool autoconf automake \
+      python3 make unzip xz-utils zip openjdk-17-jdk \
+    && rm -rf /var/lib/apt/lists/*
+
+# Note: this Dockerfile is a SKELETON. The real native build of OMC
+# from `upstream/OpenModelica` at our pinned SHA still needs to be
+# scripted (likely re-using OpenModelica's own configure + make), and
+# the resulting `omc` binary needs to land at /opt/omc-native/bin/omc.
+# Until then, `make regen-references` will fail loudly — and that's the
+# right signal: don't bump OpenModelica_sha until refs can be regenerated.
+
+WORKDIR /work
+CMD ["bash"]

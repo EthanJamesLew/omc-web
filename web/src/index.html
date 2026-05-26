@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>omc-web — OpenModelica in the browser</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>omc-web</h1>
+    <span class="tag">OpenModelica in WebAssembly</span>
+    <span id="status" class="status">loading omc.wasm…</span>
+  </header>
+
+  <main>
+    <section class="editor-pane">
+      <div class="pane-header">
+        <label for="example">Example</label>
+        <select id="example">
+          <option value="BouncingBall">Bouncing ball (no MSL — freefall ODE)</option>
+        </select>
+        <button id="build" disabled>Build</button>
+        <button id="compile" disabled>Compile</button>
+        <button id="run" disabled>Run</button>
+        <button id="dlc" disabled>Download C as .zip</button>
+        <button id="dlmat" disabled>Download .mat</button>
+        <span class="step">stopTime <input id="stopTime" type="number" value="2" step="0.5" min="0" /></span>
+        <span class="step">stepSize <input id="stepSize" type="number" value="0.1" step="0.05" min="0" /></span>
+      </div>
+      <textarea id="source" spellcheck="false">model BouncingBall
+  parameter Real g = 9.81 "gravity";
+  Real h(start=1.0, fixed=true) "height";
+  Real v(start=0.0, fixed=true) "velocity";
+equation
+  der(h) = v;
+  der(v) = -g;
+end BouncingBall;</textarea>
+    </section>
+
+    <section class="result-pane">
+      <div class="pane-header">
+        <span id="out-title">OMC compiler output</span>
+        <button id="clear">Clear</button>
+      </div>
+      <pre id="output"></pre>
+      <table id="trace" hidden>
+        <thead><tr id="trace-head"></tr></thead>
+        <tbody id="trace-body"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <details>
+      <summary>How this works</summary>
+      <p><strong>Build</strong> runs <code>omc.wasm</code> (the OpenModelica
+      compiler, compiled to WebAssembly) on your Modelica source in MEMFS.
+      Output is the same 30+ C files OMC would emit natively
+      (<code>BouncingBall.c</code>, <code>_model.h</code>, kernel splits,
+      init.xml, makefile, …). Use <em>Download C as .zip</em> to get them.</p>
+
+      <p><strong>Compile</strong> spins up <code>emception</code>
+      (clang + wasm-ld bundled as wasm, ~24 MB pack downloaded on first use)
+      and links the OMC-emitted C against prebuilt
+      <code>libomc_sim</code> + sundials + KLU + LAPACK + LIS + expat + daskr,
+      producing <code>${Model}.wasm</code> + <code>${Model}.js</code>
+      entirely in the browser.</p>
+
+      <p><strong>Run</strong> loads the just-compiled wasm, writes the
+      OMC-emitted <code>init.xml</code> / <code>info.json</code> /
+      <code>JacA.bin</code> into its MEMFS (with your <em>stopTime</em> /
+      <em>stepSize</em> patched in), and <code>callMain</code>s it. Result
+      is a MATLAB-v4 trace file, plotted in the table and downloadable.</p>
+    </details>
+  </footer>
+
+  <script>
+    // omc.js's first line is `var Module = typeof Module != "undefined"
+    // ? Module : {};` — so we have to install our Module object BEFORE
+    // that script tag runs. We also wire onRuntimeInitialized so app.js
+    // knows exactly when the wasm is callable.
+    window.__omcweb = { out: [], ready: false, err: null };
+    window.Module = {
+      noInitialRun: true,
+      print:    (t) => window.__omcweb.out.push(t + "\n"),
+      printErr: (t) => window.__omcweb.out.push("[err] " + t + "\n"),
+      onRuntimeInitialized: () => {
+        window.__omcweb.ready = true;
+        if (window.__omcweb.onReady) window.__omcweb.onReady();
+      },
+      onAbort: (w) => {
+        window.__omcweb.err = String(w);
+        const s = document.getElementById("status");
+        if (s) { s.textContent = "ABORT: " + window.__omcweb.err; s.className = "status error"; }
+      },
+    };
+    // Surface omc.js load errors that would otherwise be silent.
+    window.addEventListener("error", (e) => {
+      const s = document.getElementById("status");
+      if (s && !window.__omcweb.ready) {
+        s.textContent = "ERROR: " + (e.message || e.error);
+        s.className = "status error";
+      }
+    });
+  </script>
+  <script src="omc.js"></script>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

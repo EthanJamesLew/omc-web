@@ -1,0 +1,18 @@
+# tolerances.yaml — per-variable rtol/atol overrides for the wasm trace
+# vs the native reference. Defaults: rtol=1e-6, atol=1e-9. List only
+# the variables that need looser bounds (events, integrators with
+# inherent noise, etc.).
+
+defaults:
+  rtol: 1e-6
+  atol: 1e-9
+
+# h crosses 0 at each bounce — exact event time differs by tiny epsilon
+# between solvers, so loosen relative tolerance there.
+overrides:
+  h:
+    rtol: 1e-4
+  v:
+    rtol: 1e-4
+  flying:
+    atol: 0          # boolean — must match exactly
