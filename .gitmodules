@@ -1,0 +1,15 @@
+[submodule "upstream/OpenModelica"]
+	path = upstream/OpenModelica
+	url = https://github.com/OpenModelica/OpenModelica.git
+[submodule "upstream/OMCompiler-3rdParty"]
+	path = upstream/OMCompiler-3rdParty
+	url = https://github.com/OpenModelica/OMCompiler-3rdParty.git
+[submodule "upstream/OMBootstrapping"]
+	path = upstream/OMBootstrapping
+	url = https://github.com/OpenModelica/OMBootstrapping.git
+[submodule "upstream/emception"]
+	path = upstream/emception
+	url = https://github.com/jprendes/emception.git
+[submodule "upstream/MSL"]
+	path = upstream/MSL
+	url = https://github.com/modelica/ModelicaStandardLibrary.git

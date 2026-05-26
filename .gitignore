@@ -1,11 +1,12 @@
 build/
 build-native/
-upstream/
 emsdk/
 *.o
 *.a
 *.bc
 *.js.map
+# Note: upstream/ used to be ignored when it held loose clones.
+# It is now populated by git submodules (see .gitmodules + versions.lock).
 
 # Don't ignore the built wasm: it lives in web/ so the static site is
 # self-contained when checked out. The build script regenerates it.

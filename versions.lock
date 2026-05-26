@@ -16,14 +16,15 @@ emsdk_emception  = 3.1.24
 # Upstream OpenModelica + its 3rdParty submodule, pinned to nightly SHAs.
 # OMBootstrapping is the pre-generated MetaModelica→C output for the
 # matching OpenModelica SHA; the two must move together.
-OpenModelica_sha        = 55e1ec1014b1f6f9c4fde6f4a3e2c7f02e1b80a3
-OMCompiler-3rdParty_sha = 41c701f2dfa86b9f51a48dd2c8df7d8e72e6e3a4
-OMBootstrapping_sha     = <bound-to-OpenModelica_sha>
+OpenModelica_sha        = 55e1ec10488b34c01154715f76f6a0a92e4b6e97
+OMCompiler-3rdParty_sha = 41c701f2225408b08c6472d2e16665fc68937b5a
+OMBootstrapping_sha     = 65b9723845221cff46bc3e1b8a7313bdd0598cb3
 
-# jprendes/emception prebuilt bundle (browser-runnable clang+lld).
-# Tag rather than SHA so we get reproducible release artifacts.
-emception_tag           = latest
+# jprendes/emception (browser-runnable clang+lld). Upstream has no
+# release tags so we pin to a SHA.
+emception_tag           = 5ff1975a5d286b200edc380ba8cc0de94d5c0cdc
 
 # Modelica Standard Library — the curated boot subset + full lazy-load
 # package are both extracted from this version.
 MSL_version             = 4.0.0
+MSL_sha                 = 6626538a236a34a390655b55d5e8c906bfe31772
