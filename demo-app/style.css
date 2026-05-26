@@ -860,6 +860,25 @@ body.is-mobile .mp-root--mobile { padding-top: 0; padding-bottom: 0; }
   color: var(--ink); font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.mpm-file--btn {
+  position: relative;
+  cursor: pointer;
+  padding: 4px 6px;
+  margin: -4px -6px;       /* keep visual position unchanged */
+  border-radius: 5px;
+  transition: background .12s;
+}
+.mpm-file--btn:active { background: var(--hair2); }
+.mpm-file--btn svg:last-of-type { opacity: 0.6; }
+.mp-popover--mobile {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: auto;
+  z-index: 40;
+  min-width: min(360px, calc(100vw - 28px));
+  max-width: calc(100vw - 28px);
+}
 
 .mpm-run {
   display: inline-flex; align-items: center; gap: 6px;

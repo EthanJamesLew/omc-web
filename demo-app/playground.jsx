@@ -771,6 +771,7 @@ window.PlaygroundApp = function PlaygroundApp({ layout = "workbench", initialTab
       omcArgs, setOmcArgs,
       solver, setSolver, stopTime, setStopTime, stepSize, setStepSize,
       consoleCollapsed, setConsoleCollapsed,
+      currentExample, pickExample,
     }} />;
   }
 
@@ -850,20 +851,53 @@ function MobileApp(props) {
           trace, modelName, matArt, fname, canRun,
           omcArgs, setOmcArgs,
           solver, setSolver, stopTime, setStopTime, stepSize, setStepSize,
-          consoleCollapsed, setConsoleCollapsed } = props;
+          consoleCollapsed, setConsoleCollapsed,
+          currentExample, pickExample } = props;
   const [tab, setTab] = useState(initialTab);
+  const [examplesOpen, setExamplesOpen] = useState(false);
+  const examplesRef = useRef(null);
+  useEffect(() => {
+    if (!examplesOpen) return;
+    const onDown = (e) => {
+      if (examplesRef.current && !examplesRef.current.contains(e.target)) setExamplesOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+    };
+  }, [examplesOpen]);
   const ready = progress >= 4 && !!trace;
 
   return (
     <div className="mp-root mp-root--mobile">
       <div className="mpm-topbar">
-        <div className="mpm-file">
+        <div className="mpm-file mpm-file--btn" ref={examplesRef}
+             onClick={() => setExamplesOpen(o => !o)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
             <path d="M3 19 L10 5 L12 12 L14 5 L21 19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span className="mpm-ns">ωmc</span>
           <span className="mp-sep">/</span>
           <span className="mpm-name">{fname}</span>
+          <Icon name="chevrond" size={11} />
+          {examplesOpen && (
+            <div className="mp-popover mp-popover--examples mp-popover--mobile"
+                 onClick={(e) => e.stopPropagation()}>
+              {(window.EXAMPLES || []).map(ex => (
+                <div key={ex.id}
+                     className={`mp-example ${currentExample?.id === ex.id ? "is-active" : ""}`}
+                     onClick={() => { pickExample && pickExample(ex); setExamplesOpen(false); }}>
+                  <div className="mp-example-head">
+                    <span className="mp-example-name">{ex.name}</span>
+                    {ex.needsMSL && <span className="mp-pill mp-pill--warn-soft">needs MSL</span>}
+                  </div>
+                  <div className="mp-example-desc">{ex.description}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <button className="mpm-run" onClick={run} disabled={running || !canRun}>
           {running
