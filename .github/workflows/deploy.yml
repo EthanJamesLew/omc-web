@@ -39,11 +39,6 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          # Auto-enable Pages on first deploy so we don't need a manual
-          # step in repo settings. Requires the GITHUB_TOKEN to have admin
-          # access to the repo — true for workflows in the same repo.
-          enablement: true
 
       - name: Upload demo-app/ as the Pages artifact
         uses: actions/upload-pages-artifact@v3
