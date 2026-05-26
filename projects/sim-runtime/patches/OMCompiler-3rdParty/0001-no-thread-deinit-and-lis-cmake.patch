@@ -1,0 +1,30 @@
+diff --git a/gc/misc.c b/gc/misc.c
+index 1162fa60..543b72a8 100644
+--- a/gc/misc.c
++++ b/gc/misc.c
+@@ -1462,7 +1462,7 @@ GC_API void GC_CALL GC_enable_incremental(void)
+ #     if defined(THREADS) && (defined(MSWIN32) || defined(MSWINCE))
+         DeleteCriticalSection(&GC_write_cs);
+ #      endif
+-#     if !defined(GC_PTHREADS)
++#     if !defined(GC_PTHREADS) && (defined(MSWIN32) || defined(MSWINCE))
+         DeleteCriticalSection(&GC_allocate_ml);
+ #     endif
+     }
+diff --git a/lis-1.4.12/CMakeLists.txt b/lis-1.4.12/CMakeLists.txt
+index 0a80df06..b607bea0 100644
+--- a/lis-1.4.12/CMakeLists.txt
++++ b/lis-1.4.12/CMakeLists.txt
+@@ -1,6 +1,12 @@
+ cmake_minimum_required(VERSION 3.14)
+ project(Lis)
+ 
++include(CheckTypeSize)
++include(CheckFunctionExists)
++include(CheckSymbolExists)
++include(CheckIncludeFile)
++include(/tmp/OpenModelica/cmake/omc_check_exists.cmake)
++
+ # If we are compiling for an x86 CPU set HAS_X87_FPU.
+ if(OMC_TARGET_ARCH MATCHES "x86")
+     set (HAS_X87_FPU TRUE)

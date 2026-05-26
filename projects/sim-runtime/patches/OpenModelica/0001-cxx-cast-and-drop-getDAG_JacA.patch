@@ -1,0 +1,30 @@
+diff --git a/OMCompiler/SimulationRuntime/c/meta/meta_modelica.h b/OMCompiler/SimulationRuntime/c/meta/meta_modelica.h
+index a904ba165..45947ec48 100644
+--- a/OMCompiler/SimulationRuntime/c/meta/meta_modelica.h
++++ b/OMCompiler/SimulationRuntime/c/meta/meta_modelica.h
+@@ -208,7 +208,7 @@ static void* mmc_mk_rcon(double d)
+ }
+ static void* mmc_mk_modelica_array(base_array_t arr)
+ {
+-  base_array_t *cpy = mmc_alloc_words(sizeof(arr)/sizeof(void*) + 1);
++  base_array_t *cpy = (base_array_t*) mmc_alloc_words(sizeof(arr)/sizeof(void*) + 1);
+   memcpy(cpy, &arr, sizeof(base_array_t));
+   clone_base_array_spec(&arr, cpy);
+   /* Note: The data is hopefully not stack-allocated and can be passed this way */
+diff --git a/OMCompiler/SimulationRuntime/c/openmodelica_func.h b/OMCompiler/SimulationRuntime/c/openmodelica_func.h
+index afc0580ea..9df2c16db 100644
+--- a/OMCompiler/SimulationRuntime/c/openmodelica_func.h
++++ b/OMCompiler/SimulationRuntime/c/openmodelica_func.h
+@@ -282,8 +282,10 @@ struct OpenModelicaGeneratedFunctionCallbacks {
+   jacobianColumn_func_ptr functionJacH_column;
+   /*#endif*/
+ 
+-  /* get dependency graph for JacA */
+-  void (*getDAG_JacA)(DATA*, threadData_t*, JACOBIAN*);
++  /* getDAG_JacA dropped — OMBootstrapping's CodegenC.tpl predates this
++   * slot and emits the callback initializer with linear_model_frame in
++   * its place. Used only by gbode_main.c (which our minimal-OMC_EMCC
++   * runtime doesn't compile), so removing it is safe. */
+ 
+   const char *(*linear_model_frame)(void); /* printf format-string with holes for 6 strings */
+   const char *(*linear_model_datarecovery_frame)(void); /* printf format-string with holes for 9 strings */
