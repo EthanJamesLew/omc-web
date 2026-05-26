@@ -11,6 +11,14 @@ emsdk/
 # self-contained when checked out. The build script regenerates it.
 !web/omc.wasm
 
+# Same rule for the in-browser compile assets — they're part of the
+# distributed static site, not transient build output.
+!web/emscripten-libs/
+!web/emscripten-libs/*.a
+!web/model-bundle/
+!web/model-bundle/libs/*.a
+!web/model-bundle/objs/*.o
+
 # The repo-root .gitignore ignores `*.mo` (for gettext translations).
 # Our `.mo` files are Modelica source — track them.
 !**/*.mo

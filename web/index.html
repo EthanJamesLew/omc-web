@@ -22,6 +22,7 @@
           <option value="BouncingBall">Bouncing ball (no MSL — freefall ODE)</option>
         </select>
         <button id="build" disabled>Build</button>
+        <button id="compile" disabled>Compile</button>
         <button id="run" disabled>Run</button>
         <button id="dlc" disabled>Download C as .zip</button>
         <button id="dlmat" disabled>Download .mat</button>
@@ -60,17 +61,18 @@ end BouncingBall;</textarea>
       (<code>BouncingBall.c</code>, <code>_model.h</code>, kernel splits,
       init.xml, makefile, …). Use <em>Download C as .zip</em> to get them.</p>
 
-      <p><strong>Run</strong> loads a pre-built <code>BouncingBall.wasm</code>
-      — the per-model simulation binary that the OMC-emitted C is normally
-      compiled into — and runs it against your <em>stopTime</em> /
-      <em>stepSize</em>. Result is a MATLAB-v4 trace file, plotted in the
-      table and downloadable.</p>
+      <p><strong>Compile</strong> spins up <code>emception</code>
+      (clang + wasm-ld bundled as wasm, ~24 MB pack downloaded on first use)
+      and links the OMC-emitted C against prebuilt
+      <code>libomc_sim</code> + sundials + KLU + LAPACK + LIS + expat + daskr,
+      producing <code>${Model}.wasm</code> + <code>${Model}.js</code>
+      entirely in the browser.</p>
 
-      <p><em>Caveat:</em> the per-model wasm is currently pre-built. Modifying
-      the model significantly (different number of state variables, new
-      equations) means the prebuilt won't match. A genuine in-browser
-      <code>C→wasm</code> step (e.g. bundling <code>emception</code>) is the
-      next milestone.</p>
+      <p><strong>Run</strong> loads the just-compiled wasm, writes the
+      OMC-emitted <code>init.xml</code> / <code>info.json</code> /
+      <code>JacA.bin</code> into its MEMFS (with your <em>stopTime</em> /
+      <em>stepSize</em> patched in), and <code>callMain</code>s it. Result
+      is a MATLAB-v4 trace file, plotted in the table and downloadable.</p>
     </details>
   </footer>
 
@@ -104,6 +106,6 @@ end BouncingBall;</textarea>
     });
   </script>
   <script src="omc.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js" type="module"></script>
 </body>
 </html>

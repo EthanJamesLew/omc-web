@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>emception integration test</title>
+  <style>
+    body { font: 13px/1.4 system-ui, sans-serif; background:#1e1e1e; color:#d4d4d4; margin:0; padding:16px; }
+    h1 { font-size: 14px; margin: 0 0 12px; }
+    pre { background:#252526; padding:8px; max-height:50vh; overflow:auto; white-space:pre-wrap; }
+    button { padding: 6px 12px; background:#0e639c; color:#fff; border:1px solid #1177bb; border-radius:3px; cursor:pointer; }
+    button:disabled { opacity:0.5; cursor:not-allowed; }
+  </style>
+</head>
+<body>
+  <h1>Emception integration smoke test</h1>
+  <p>
+    Loads <code>emception.worker.bundle.worker.js</code> from <code>/emception/</code>,
+    wires Comlink, calls <code>emception.init()</code> (this kicks off downloading +
+    decompressing the ~24 MB brotli pack and instantiating clang/llvm/binaryen as wasm),
+    then compiles a tiny <code>hello.cpp</code> with <code>em++</code> in-browser.
+  </p>
+  <p>
+    <button id="go" disabled>Loading…</button>
+    <button id="bb" disabled>Link BouncingBall (in emception)</button>
+    <button id="run" disabled>Run BouncingBall</button>
+    <span id="status"></span>
+  </p>
+  <pre id="log"></pre>
+
+  <script type="module">
+    import * as Comlink from "https://unpkg.com/comlink@4.4.1/dist/esm/comlink.mjs";
+    const $ = (id) => document.getElementById(id);
+    const log = (msg) => { $("log").textContent += msg + "\n"; $("log").scrollTop = 1e9; };
+    const setStatus = (s) => { $("status").textContent = s; };
+
+    setStatus("creating worker…");
+    let worker;
+    try {
+      worker = new Worker("/emception/emception.worker.bundle.worker.js");
+    } catch (e) {
+      log("ERR creating worker: " + e.message);
+      setStatus("failed");
+      throw e;
+    }
+    const emception = Comlink.wrap(worker);
+
+    log("worker created. Calling emception.init() (downloads ~24 MB brotli pack)…");
+    setStatus("initialising…");
+
+    emception.onstdout = Comlink.proxy((s) => log(s));
+    emception.onstderr = Comlink.proxy((s) => log("[err] " + s));
+    emception.onprocessstart = Comlink.proxy((argv) => log("$ " + (argv || []).join(" ")));
+
+    try {
+      await emception.init();
+    } catch (e) {
+      log("init failed: " + e.message);
+      setStatus("init failed");
+      throw e;
+    }
+    log("=== emception.init() complete");
+    setStatus("ready");
+    $("go").disabled = false;
+    $("bb").disabled = false;
+    $("go").textContent = "Compile hello.cpp";
+
+    async function runProbe(label, cmd) {
+      log("\n### " + label);
+      try {
+        const r = await emception.run(cmd);
+        log("    returncode=" + r.returncode);
+      } catch (e) {
+        log("    THREW: " + e.message);
+      }
+    }
+
+    // The brotli pack ships musl SOURCE, not prebuilt .a archives. wasm-ld
+    // chokes (signal 42 = uncaught JS exception in the sandboxed lld) when
+    // it tries to open libc.a that doesn't exist. Inject prebuilt archives
+    // from our local emsdk before linking.
+    const SYSLIBS = [
+      "libc.a","libdlmalloc.a","libcompiler_rt.a","libnoexit.a",
+      "libstubs.a","libsockets.a","libGL.a","libal.a","libhtml5.a",
+      "libc++-noexcept.a","libc++abi-noexcept.a",
+    ];
+    // sysroot is RO; /working is writable. Stage libs there and use -L.
+    const LIBDIR = "/working";
+    async function stageOne(name) {
+      const r = await fetch("/emscripten-libs/" + name);
+      const buf = new Uint8Array(await r.arrayBuffer());
+      await emception.fileSystem.writeFile(LIBDIR + "/" + name, buf);
+      log("  " + name.padEnd(24) + " " + buf.length + " B");
+      return buf.length;
+    }
+    async function stageSyslibs() {
+      log("\n### staging " + SYSLIBS.length + " libs into " + LIBDIR);
+      let total = 0;
+      for (const name of SYSLIBS) {
+        try { total += await stageOne(name); }
+        catch (e) { log("    THREW on " + name + ": " + e.message); throw e; }
+      }
+      log("    staged " + total + " B total");
+    }
+
+    $("go").addEventListener("click", async () => {
+      $("go").disabled = true;
+      setStatus("probing…");
+      const src = `#include <stdio.h>
+int main() { printf("hello\\n"); return 0; }
+`;
+      await emception.fileSystem.writeFile("/working/hello.c", src);
+
+      await stageSyslibs();
+
+      // -L our staged path so wasm-ld finds libc.a / libcompiler_rt.a / etc
+      // before the (empty) sysroot dir.
+      await runProbe("emcc default link (libs staged)",
+        "emcc -O2 /working/hello.c -o /working/hello.js -L" + LIBDIR);
+
+      // Check whether the output was actually produced.
+      try {
+        const wasm = await emception.fileSystem.readFile("/working/hello.wasm");
+        log("\n=== /working/hello.wasm = " + wasm.byteLength + " B");
+      } catch (e) { log("\n=== no hello.wasm (link did not produce output)"); }
+      try {
+        const js = await emception.fileSystem.readFile("/working/hello.js");
+        log("=== /working/hello.js   = " + js.byteLength + " B");
+      } catch (e) { log("=== no hello.js"); }
+
+      setStatus("probes done");
+      $("go").disabled = false;
+    });
+
+    // ============================================================
+    // BouncingBall link-in-browser
+    // ============================================================
+    const BB_OBJS = [
+      "BouncingBall.o","BouncingBall_01exo.o","BouncingBall_02nls.o",
+      "BouncingBall_03lsy.o","BouncingBall_04set.o","BouncingBall_05evt.o",
+      "BouncingBall_06inz.o","BouncingBall_07dly.o","BouncingBall_08bnd.o",
+      "BouncingBall_09alg.o","BouncingBall_10asr.o","BouncingBall_11mix.o",
+      "BouncingBall_12jac.o","BouncingBall_13opt.o","BouncingBall_14lnz.o",
+      "BouncingBall_15syn.o","BouncingBall_16dae.o","BouncingBall_17inl.o",
+      "BouncingBall_18spd.o","BouncingBall_functions.o","BouncingBall_records.o",
+      "omcweb_gc_stub.o",
+    ];
+    const BB_LIBS = [
+      "libomc_sim.a",
+      "libsundials_cvode.a","libsundials_idas.a","libsundials_kinsol.a",
+      "libsundials_nvecserial.a","libsundials_nvecmanyvector.a",
+      "libsundials_sunlinsoldense.a","libsundials_sunlinsolband.a",
+      "libsundials_sunlinsollapackdense.a","libsundials_sunlinsollapackband.a",
+      "libsundials_sunlinsolklu.a","libsundials_sunlinsolpcg.a",
+      "libsundials_sunlinsolspgmr.a","libsundials_sunlinsolspbcgs.a",
+      "libsundials_sunlinsolspfgmr.a","libsundials_sunlinsolsptfqmr.a",
+      "libsundials_sunmatrixdense.a","libsundials_sunmatrixband.a",
+      "libsundials_sunmatrixsparse.a","libsundials_sunnonlinsolnewton.a",
+      "libsundials_sunnonlinsolfixedpoint.a",
+      "libomcss.a","libomclapack.a","liblis.a","libexpat.a","libomcdaskr.a",
+    ];
+
+    async function fetchStage(srcUrl, destPath) {
+      const r = await fetch(srcUrl);
+      if (!r.ok) throw new Error("HTTP " + r.status + " on " + srcUrl);
+      const buf = new Uint8Array(await r.arrayBuffer());
+      await emception.fileSystem.writeFile(destPath, buf);
+      return buf.length;
+    }
+
+    let bbOutputs = null;  // { js: Uint8Array, wasm: Uint8Array }
+
+    $("bb").addEventListener("click", async () => {
+      $("bb").disabled = true;
+      $("go").disabled = true;
+      setStatus("staging BouncingBall…");
+      try {
+        // Ensure system libs are staged (cheap if already done).
+        await stageSyslibs();
+
+        log("\n### staging " + BB_OBJS.length + " model objs");
+        let totalObjs = 0;
+        for (const f of BB_OBJS) {
+          totalObjs += await fetchStage("/model-bundle/objs/" + f, "/working/" + f);
+        }
+        log("    objs: " + totalObjs + " B");
+
+        log("\n### staging " + BB_LIBS.length + " support libs");
+        let totalLibs = 0;
+        for (const f of BB_LIBS) {
+          totalLibs += await fetchStage("/model-bundle/libs/" + f, "/working/" + f);
+        }
+        log("    libs: " + totalLibs + " B");
+
+        // Link command mirrors scripts/build-model-wasm.sh. All paths are
+        // /working/<name> since that's where we staged.
+        const objArgs  = BB_OBJS.map(f => "/working/" + f).join(" ");
+        const libArgs  = BB_LIBS.map(f => "/working/" + f).join(" ");
+        const flags = [
+          "-O0", "-g",
+          "-lm",
+          "-L/working",     // for libc.a / libcompiler_rt.a / etc
+          "-s", "ALLOW_MEMORY_GROWTH=1",
+          "-s", "INITIAL_MEMORY=64MB",
+          "-s", "STACK_SIZE=8MB",
+          "-s", "SUPPORT_LONGJMP=1",
+          "-s", "ASSERTIONS=2",
+          "-s", "FORCE_FILESYSTEM=1",
+          "-s", "EXPORTED_RUNTIME_METHODS=callMain,FS,UTF8ToString",
+          "-s", "ENVIRONMENT=web,worker,node",
+          "-s", "INVOKE_RUN=0",
+          "-s", "EMULATE_FUNCTION_POINTER_CASTS=1",
+          "-s", "ERROR_ON_UNDEFINED_SYMBOLS=1",
+          "-o", "/working/BouncingBall.js",
+        ].join(" ");
+        const cmd = "emcc " + objArgs + " " + libArgs + " " + flags;
+        await runProbe("link BouncingBall", cmd);
+
+        try {
+          const wasm = await emception.fileSystem.readFile("/working/BouncingBall.wasm");
+          const js   = await emception.fileSystem.readFile("/working/BouncingBall.js");
+          log("\n=== BouncingBall.wasm = " + wasm.byteLength + " B");
+          log("=== BouncingBall.js   = " + js.byteLength + " B");
+          bbOutputs = { wasm, js };
+          $("run").disabled = false;
+          setStatus("ready to run");
+        } catch (e) {
+          log("\n=== no output — link failed: " + e.message);
+          setStatus("link failed");
+        }
+      } catch (e) {
+        log("THREW: " + e.message);
+        setStatus("stage threw");
+      } finally {
+        $("bb").disabled = false;
+        $("go").disabled = false;
+      }
+    });
+
+    // ============================================================
+    // Run BouncingBall (load the freshly-built .js + .wasm in a child Module)
+    // ============================================================
+    $("run").addEventListener("click", async () => {
+      if (!bbOutputs) return;
+      $("run").disabled = true;
+      setStatus("running…");
+      try {
+        // Stage support files in a Blob URL world: install the wasm under
+        // a URL the .js loader can fetch.
+        const wasmBlob = new Blob([bbOutputs.wasm], { type: "application/wasm" });
+        const wasmURL  = URL.createObjectURL(wasmBlob);
+        const jsText   = new TextDecoder().decode(bbOutputs.js);
+
+        // Fetch the OMC-emitted support files (init.xml, info.json, JacA.bin)
+        const initXML  = await (await fetch("/model-bundle/BouncingBall_init.xml")).text();
+        const infoJSON = await (await fetch("/model-bundle/BouncingBall_info.json")).text();
+        const jacBin   = new Uint8Array(await (await fetch("/model-bundle/BouncingBall_JacA.bin")).arrayBuffer());
+
+        // emcc-emitted loader expects locateFile(name, prefix) for the wasm.
+        const mod = await new Promise((resolve, reject) => {
+          const M = {
+            noInitialRun: true,
+            print:    (t) => log(t),
+            printErr: (t) => log("[err] " + t),
+            locateFile: (path) => path.endsWith(".wasm") ? wasmURL : path,
+            onRuntimeInitialized: () => resolve(M),
+            onAbort: (w) => reject(new Error("abort: " + w)),
+          };
+          // Run the loader script in a sandbox that gets Module from closure.
+          const factory = new Function("Module", jsText + "; return Module;");
+          try { factory(M); } catch (e) { reject(e); }
+        });
+
+        // Stage support files in the model's MEMFS.
+        mod.FS.writeFile("/BouncingBall_init.xml",  initXML);
+        mod.FS.writeFile("/BouncingBall_info.json", infoJSON);
+        mod.FS.writeFile("/BouncingBall_JacA.bin",  jacBin);
+
+        log("\n=== running BouncingBall.callMain");
+        const ret = mod.callMain(["-s=euler","-lv=LOG_STDOUT,LOG_SIMULATION"]);
+        log("=== ret=" + ret);
+
+        const files = mod.FS.readdir("/").filter(f => f.startsWith("BouncingBall") && f.endsWith("_res.mat"));
+        if (files.length === 0) {
+          log("=== no _res.mat produced");
+          setStatus("ran, no trace");
+        } else {
+          const mat = mod.FS.readFile("/" + files[0]);
+          log("=== /" + files[0] + " = " + mat.length + " B (downloading)");
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(new Blob([mat]));
+          a.download = files[0];
+          a.click();
+          setStatus("trace downloaded");
+        }
+      } catch (e) {
+        log("RUN THREW: " + e.message);
+        if (e.stack) log(e.stack.split("\n").slice(0,8).join("\n"));
+        setStatus("run failed");
+      } finally {
+        $("run").disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
